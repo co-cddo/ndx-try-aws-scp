@@ -26,7 +26,8 @@ env:
   AWS_REGION: "eu-west-2"
   WORKING_DIR: "environments/ndx-production"
   # Terraform variables (TF_VAR_* are picked up automatically)
-  TF_VAR_sandbox_ou_id: "ou-2laj-lha5vsam"
+  # ndx_InnovationSandboxAccountPool - where ISB SCPs are attached
+  TF_VAR_sandbox_ou_id: "ou-2laj-4dyae1oa"
   TF_VAR_namespace: "ndx"
   TF_VAR_managed_regions: '["us-east-1", "us-west-2"]'
   TF_VAR_enable_cost_avoidance: "true"
