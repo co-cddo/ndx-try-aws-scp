@@ -14,20 +14,36 @@ The Innovation Sandbox comes with SCPs (Service Control Policies) that are too r
 
 Additionally, there's a conflict with LZA - it has an EventBridge rule that reverts any SCP changes we make manually.
 
-## Why We Can't Just Edit the SCPs in the Console
+## Investigation Findings (January 2025)
 
-- Manual changes get overwritten by LZA
-- No audit trail or version control
-- Can't easily roll back if something breaks
-- Multiple people might make conflicting changes
+After analyzing the current SCPs attached to `ou-2laj-4dyae1oa` (ndx_InnovationSandboxAccountPool):
+
+| Issue | Status | Finding |
+|-------|--------|---------|
+| **Textract** | Partially fixed | Read operations (AnalyzeDocument, etc.) already in allowlist. **Missing async operations** (StartDocumentAnalysis, etc.) needed for multi-page documents. |
+| **Bedrock cross-region** | Already fixed | LimitRegionsScp already has `bedrock:InferenceProfileArn` exception |
+| **ECS/Secrets Manager** | NOT an SCP issue | Both `ecs:*` and `secretsmanager:*` are in NukeSupportedServices allowlist. Issue is likely IAM permissions, VPC endpoints, or task execution role config |
+| **Cost controls** | New SCP needed | Will create `InnovationSandboxCostAvoidanceScp` |
+
+### OU Structure
+
+```
+InnovationSandbox (ou-2laj-lha5vsam) - Parent OU, no SCPs
+  └── ndx_InnovationSandboxAccountPool (ou-2laj-4dyae1oa) - SCPs attached here
+        ├── Entry
+        ├── Available
+        ├── Exit
+        ├── CleanUp
+        └── Quarantine
+```
 
 ## The Solution
 
 A Terraform module that:
 
 1. **Takes ownership of two existing SCPs** (via import):
-   - `InnovationSandboxAwsNukeSupportedServicesScp` - we add Textract to the allowlist
-   - `InnovationSandboxLimitRegionsScp` - we add an exception for Bedrock inference profiles
+   - `InnovationSandboxAwsNukeSupportedServicesScp` - adds async Textract operations
+   - `InnovationSandboxLimitRegionsScp` - Bedrock exception already present
 
 2. **Creates one new SCP**:
    - `InnovationSandboxCostAvoidanceScp` - limits EC2 instance types, blocks expensive services
@@ -35,12 +51,13 @@ A Terraform module that:
 ## What Changes
 
 ### Textract Access
-Before: All Textract actions denied
-After: Read-only Textract operations allowed (AnalyzeDocument, DetectDocumentText, etc.)
+Before: Only sync Textract operations allowed
+After: Both sync and async operations allowed:
+- `StartDocumentAnalysis`, `StartDocumentTextDetection`
+- `StartExpenseAnalysis`, `StartLendingAnalysis`
 
 ### Bedrock Cross-Region
-Before: All actions outside us-east-1/us-west-2 denied
-After: Same, but with exception for `bedrock:InferenceProfileArn`
+**No changes needed** - exception already in place for `bedrock:InferenceProfileArn`
 
 ### Cost Controls (New)
 - EC2 limited to t2/t3/m5/m6i up to xlarge
@@ -71,16 +88,12 @@ terraform-scp-overrides/
 # Already done:
 # 1. S3 bucket and DynamoDB table created for state
 # 2. Terraform initialized
+# 3. SCPs imported into state
 
-# Still needed:
-# 1. Import existing SCPs
-AWS_PROFILE=ndx-management ../../scripts/import-existing-scps.sh
-
-# 2. Review changes
-AWS_PROFILE=ndx-management terraform plan
-
-# 3. Apply
-AWS_PROFILE=ndx-management terraform apply
+# To apply (via GitHub Actions):
+# 1. Merge fix branches to main
+# 2. Pipeline runs plan automatically
+# 3. After approval, pipeline applies changes
 ```
 
 ## Risks and Mitigations
@@ -89,12 +102,12 @@ AWS_PROFILE=ndx-management terraform apply
 |------|------------|
 | CDK redeploy overwrites our changes | Don't redeploy ISB Account Pool stack; or re-run Terraform after |
 | LZA reverts SCP attachments | Need to set `scpRevertChangesConfig.enable: false` in LZA config |
-| Cost controls too restrictive | Instance types are configurable in terraform.tfvars |
+| Cost controls too restrictive | Instance types are configurable via TF_VAR_allowed_ec2_instance_types |
 
 ## Still TODO
 
 1. **LZA config change** - Need to disable the SCP revert rule permanently
-2. **ECS/Secrets Manager fix** - Need to investigate which SCP is blocking this and add an exception
+2. **ECS/Secrets Manager investigation** - Not an SCP issue; check IAM task execution role and VPC endpoints
 3. **Testing** - Run through each scenario after applying to verify they work
 
 ## Questions for Chris
