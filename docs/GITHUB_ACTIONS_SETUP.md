@@ -94,7 +94,10 @@ aws iam create-policy \
           "organizations:DescribeOrganization",
           "organizations:ListRoots",
           "organizations:ListOrganizationalUnitsForParent",
-          "organizations:DescribeOrganizationalUnit"
+          "organizations:DescribeOrganizationalUnit",
+          "organizations:ListTagsForResource",
+          "organizations:TagResource",
+          "organizations:UntagResource"
         ],
         "Resource": "*"
       },
