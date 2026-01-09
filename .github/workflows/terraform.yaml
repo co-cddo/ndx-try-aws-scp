@@ -132,10 +132,10 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     needs: plan
-    if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-    environment: production  # Requires approval
+    # MANUAL ONLY - apply never runs automatically on merge
+    # Must be triggered via Actions -> Run workflow -> select 'apply'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    environment: production  # Requires approval if environment is configured
 
     steps:
       - name: Harden Runner
