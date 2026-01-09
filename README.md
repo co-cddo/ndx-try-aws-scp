@@ -2,6 +2,98 @@
 
 Terraform module to manage and override Service Control Policies (SCPs) for the NDX Innovation Sandbox deployment.
 
+---
+
+## Meeting Notes: January 2025 Investigation
+
+### What Was Broken
+
+| Issue | Symptom | Root Cause |
+|-------|---------|------------|
+| **Textract blocked** | FOI Redaction scenario fails on multi-page documents | Async operations (`StartDocumentAnalysis`, etc.) missing from allowlist - only sync operations were permitted |
+| **ECS can't access Secrets Manager** | LocalGov Drupal fails: "explicit deny in service control policy" | **Not a Secrets Manager issue** - the `LimitRegions` SCP blocks ALL actions outside us-east-1/us-west-2. UK scenarios deploy in eu-west-2 → everything blocked |
+| **Bedrock cross-region** | Inference profiles fail | Already fixed in live SCP - `bedrock:InferenceProfileArn` exception exists |
+| **No cost controls** | Users could spin up expensive resources | No SCP existed to limit instance sizes or block expensive services |
+
+### What Each Fix Does
+
+#### 1. Textract Async Operations
+**File**: `modules/scp-manager/main.tf` (nuke_supported_services)
+
+The `InnovationSandboxAwsNukeSupportedServicesScp` uses a "deny NotAction" pattern - services in the list are ALLOWED. We added:
+```
+textract:StartDocumentAnalysis      # Async analysis (multi-page)
+textract:StartDocumentTextDetection # Async text detection
+textract:StartExpenseAnalysis       # Async expense docs
+textract:StartLendingAnalysis       # Async lending docs
+textract:GetDocumentAnalysis        # Get async results
+textract:GetDocumentTextDetection
+textract:GetExpenseAnalysis
+textract:GetLendingAnalysis
+textract:GetLendingAnalysisSummary
+```
+
+**Why it was broken**: Sync operations (immediate response) were allowed, but async operations (required for documents >1 page) were not.
+
+#### 2. EU-West-2 Region Access
+**File**: `.github/workflows/terraform.yaml` (TF_VAR_managed_regions)
+
+Added `eu-west-2` to the allowed regions list:
+```yaml
+TF_VAR_managed_regions: '["us-east-1", "us-west-2", "eu-west-2"]'
+```
+
+**Why it was broken**: The `LimitRegions` SCP blocks ALL AWS actions outside allowed regions. UK-based scenarios (LocalGov Drupal) deploy to eu-west-2, so they couldn't do anything - not just Secrets Manager, but EC2, RDS, everything.
+
+#### 3. Cost Avoidance SCP (NEW)
+**File**: `modules/scp-manager/main.tf` (cost_avoidance)
+
+Creates `InnovationSandboxCostAvoidanceScp` that:
+- Limits EC2 to: t2/t3/t3a (micro→large), m5/m6i (large→xlarge)
+- Blocks expensive operations:
+  - `sagemaker:CreateEndpoint`, `CreateTrainingJob`
+  - `elasticmapreduce:RunJobFlow`
+  - `redshift:CreateCluster`
+  - `gamelift:CreateFleet`
+- Limits EKS nodegroups to max 5 nodes
+
+**Why needed**: No guardrails existed. Users could spin up p4d.24xlarge GPU instances or SageMaker endpoints and blow through budgets before 24-hour billing reconciliation.
+
+### OU Structure (Important Context)
+
+```
+InnovationSandbox (ou-2laj-lha5vsam)     ← Parent OU, NO SCPs here
+  └── ndx_InnovationSandboxAccountPool (ou-2laj-4dyae1oa)  ← SCPs attached HERE
+        ├── Entry      (WriteProtection)
+        ├── Available  (WriteProtection)
+        ├── Active     (FullAWSAccess only - running sandboxes)
+        ├── Frozen
+        ├── Exit       (WriteProtection)
+        ├── CleanUp    (WriteProtection)
+        └── Quarantine (WriteProtection)
+```
+
+We target `ou-2laj-4dyae1oa` (the AccountPool), not the parent.
+
+### Next Steps to Complete
+
+| Step | Who | Notes |
+|------|-----|-------|
+| **1. Create GitHub production environment** | Greg/Chris | Repo Settings → Environments → New → "production" → Add required reviewers |
+| **2. Review Terraform plan** | Chris | Run `terraform plan` to see exact changes |
+| **3. Disable LZA SCP revert** | Platform team | Set `scpRevertChangesConfig.enable: false` in LZA config, otherwise changes will be reverted automatically |
+| **4. Apply Terraform** | Manual trigger | Actions → Terraform SCP Management → Run workflow → Select "apply" |
+| **5. Test scenarios** | Greg | Run through Textract, LocalGov Drupal, Bedrock after apply |
+
+### Pipeline Security
+
+- **No stored credentials** - Uses OIDC (GitHub proves identity to AWS)
+- **Manual apply only** - Never auto-applies on merge
+- **Environment gate** - Apply requires approval from configured reviewers
+- **Fork protection** - PRs from forks cannot run the workflow
+
+---
+
 ## Problem Statement
 
 The Innovation Sandbox on AWS (ISB) deploys SCPs via CDK/CloudFormation. We need to:
