@@ -194,19 +194,27 @@ locals {
     # =====================================================
     # NDX ADDITIONS - Services added for sandbox scenarios
     # =====================================================
-    # Textract - for document processing scenarios (read-only operations)
-    # Note: Not all textract actions are nuke-safe, only analysis operations
+    # Textract - for document processing scenarios
+    # Includes both sync and async operations for multi-page document processing
+    # Sync operations (immediate response)
     "textract:AnalyzeDocument",
     "textract:AnalyzeExpense",
     "textract:AnalyzeID",
     "textract:DetectDocumentText",
-    "textract:GetAdapter",
-    "textract:GetAdapterVersion",
+    # Async operations (required for multi-page documents)
+    "textract:StartDocumentAnalysis",
+    "textract:StartDocumentTextDetection",
+    "textract:StartExpenseAnalysis",
+    "textract:StartLendingAnalysis",
+    # Get results of async operations
     "textract:GetDocumentAnalysis",
     "textract:GetDocumentTextDetection",
     "textract:GetExpenseAnalysis",
     "textract:GetLendingAnalysis",
     "textract:GetLendingAnalysisSummary",
+    # Adapter management (for custom models)
+    "textract:GetAdapter",
+    "textract:GetAdapterVersion",
     "textract:ListAdapters",
     "textract:ListAdapterVersions",
     "textract:ListTagsForResource",
