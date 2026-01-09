@@ -22,19 +22,21 @@ After analyzing the current SCPs attached to `ou-2laj-4dyae1oa` (ndx_InnovationS
 |-------|--------|---------|
 | **Textract** | Partially fixed | Read operations (AnalyzeDocument, etc.) already in allowlist. **Missing async operations** (StartDocumentAnalysis, etc.) needed for multi-page documents. |
 | **Bedrock cross-region** | Already fixed | LimitRegionsScp already has `bedrock:InferenceProfileArn` exception |
-| **ECS/Secrets Manager** | NOT an SCP issue | Both `ecs:*` and `secretsmanager:*` are in NukeSupportedServices allowlist. Issue is likely IAM permissions, VPC endpoints, or task execution role config |
+| **ECS/Secrets Manager** | **REGION ISSUE** | Root cause: LimitRegions SCP blocks ALL actions outside us-east-1/us-west-2. UK scenarios (LocalGov Drupal) deploy in eu-west-2 → blocked. **Fix: Add eu-west-2 to managed_regions** |
 | **Cost controls** | New SCP needed | Will create `InnovationSandboxCostAvoidanceScp` |
 
 ### OU Structure
 
 ```
 InnovationSandbox (ou-2laj-lha5vsam) - Parent OU, no SCPs
-  └── ndx_InnovationSandboxAccountPool (ou-2laj-4dyae1oa) - SCPs attached here
-        ├── Entry
-        ├── Available
-        ├── Exit
-        ├── CleanUp
-        └── Quarantine
+  └── ndx_InnovationSandboxAccountPool (ou-2laj-4dyae1oa) - ISB SCPs attached here
+        ├── Entry      (WriteProtection SCP)
+        ├── Available  (WriteProtection SCP)
+        ├── Active     (FullAWSAccess only - where running sandboxes are)
+        ├── Frozen
+        ├── Exit       (WriteProtection SCP)
+        ├── CleanUp    (WriteProtection SCP)
+        └── Quarantine (WriteProtection SCP)
 ```
 
 ## The Solution
@@ -107,7 +109,7 @@ terraform-scp-overrides/
 ## Still TODO
 
 1. **LZA config change** - Need to disable the SCP revert rule permanently
-2. **ECS/Secrets Manager investigation** - Not an SCP issue; check IAM task execution role and VPC endpoints
+2. **GitHub Environment Setup** - CRITICAL: Create `production` environment in repo settings with required reviewers, otherwise apply runs WITHOUT approval
 3. **Testing** - Run through each scenario after applying to verify they work
 
 ## Questions for Chris
