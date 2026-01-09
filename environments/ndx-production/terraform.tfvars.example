@@ -1,0 +1,35 @@
+# NDX Production Environment Configuration
+# Copy this file to terraform.tfvars and fill in the values
+
+# The Organization Unit ID where sandbox accounts live
+# Find this in AWS Organizations console or via:
+#   aws organizations list-organizational-units-for-parent --parent-id r-xxxx
+sandbox_ou_id = "ou-xxxx-xxxxxxxx"
+
+# Namespace used by Innovation Sandbox (usually 'ndx')
+namespace = "ndx"
+
+# Regions allowed for sandbox accounts
+managed_regions = ["us-east-1", "us-west-2"]
+
+# Enable cost avoidance SCP (recommended: true)
+enable_cost_avoidance = true
+
+# EC2 instance types allowed (customize based on your needs)
+allowed_ec2_instance_types = [
+  "t2.micro",
+  "t2.small",
+  "t2.medium",
+  "t3.micro",
+  "t3.small",
+  "t3.medium",
+  "t3.large",
+  "t3a.micro",
+  "t3a.small",
+  "t3a.medium",
+  "t3a.large",
+  "m5.large",
+  "m5.xlarge",
+  "m6i.large",
+  "m6i.xlarge"
+]
