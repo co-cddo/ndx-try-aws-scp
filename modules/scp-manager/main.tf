@@ -305,9 +305,9 @@ resource "aws_organizations_policy" "cost_avoidance" {
         }
       },
       {
-        Sid    = "LimitEKSNodegroupSize"
-        Effect = "Deny"
-        Action = ["eks:CreateNodegroup", "eks:UpdateNodegroupConfig"]
+        Sid      = "LimitEKSNodegroupSize"
+        Effect   = "Deny"
+        Action   = ["eks:CreateNodegroup", "eks:UpdateNodegroupConfig"]
         Resource = ["*"]
         Condition = {
           "NumericGreaterThan" = {
