@@ -305,9 +305,24 @@ resource "aws_servicequotas_template" "dynamodb_table_count" {
   value        = var.dynamodb_table_limit # Default: 50
 }
 
-# Account-wide RCU/WCU limits don't exist as service quotas.
-# DynamoDB capacity is controlled per-table, which SCPs cannot limit.
-# Recommendation: Use AWS Budgets with actions for DynamoDB.
+# DynamoDB account-level capacity limits
+resource "aws_servicequotas_template" "dynamodb_read_capacity" {
+  count = var.enable_dynamodb_quotas ? 1 : 0
+
+  quota_code   = "L-8C6F19B1" # Account-level read capacity units
+  service_code = "dynamodb"
+  region       = var.primary_region
+  value        = var.dynamodb_read_capacity_limit
+}
+
+resource "aws_servicequotas_template" "dynamodb_write_capacity" {
+  count = var.enable_dynamodb_quotas ? 1 : 0
+
+  quota_code   = "L-F4C74B24" # Account-level write capacity units
+  service_code = "dynamodb"
+  region       = var.primary_region
+  value        = var.dynamodb_write_capacity_limit
+}
 
 # -----------------------------------------------------------------------------
 # KINESIS SERVICE QUOTAS
@@ -396,4 +411,46 @@ resource "aws_servicequotas_template" "lambda_concurrent_secondary" {
   service_code = "lambda"
   region       = var.secondary_region
   value        = var.lambda_concurrent_executions
+}
+
+resource "aws_servicequotas_template" "dynamodb_read_capacity_secondary" {
+  count = var.enable_dynamodb_quotas && var.secondary_region != null ? 1 : 0
+
+  quota_code   = "L-8C6F19B1"
+  service_code = "dynamodb"
+  region       = var.secondary_region
+  value        = var.dynamodb_read_capacity_limit
+}
+
+resource "aws_servicequotas_template" "dynamodb_write_capacity_secondary" {
+  count = var.enable_dynamodb_quotas && var.secondary_region != null ? 1 : 0
+
+  quota_code   = "L-F4C74B24"
+  service_code = "dynamodb"
+  region       = var.secondary_region
+  value        = var.dynamodb_write_capacity_limit
+}
+
+# -----------------------------------------------------------------------------
+# BEDROCK SERVICE QUOTAS
+# -----------------------------------------------------------------------------
+# Bedrock has model-specific quotas. These limit tokens/requests per minute.
+# Note: Quota codes may vary by model and region availability.
+
+resource "aws_servicequotas_template" "bedrock_anthropic_tokens" {
+  count = var.enable_bedrock_quotas ? 1 : 0
+
+  quota_code   = "L-F5FA8D9D" # Anthropic Claude tokens per minute
+  service_code = "bedrock"
+  region       = var.primary_region
+  value        = var.bedrock_tokens_per_minute
+}
+
+resource "aws_servicequotas_template" "bedrock_anthropic_tokens_secondary" {
+  count = var.enable_bedrock_quotas && var.secondary_region != null ? 1 : 0
+
+  quota_code   = "L-F5FA8D9D"
+  service_code = "bedrock"
+  region       = var.secondary_region
+  value        = var.bedrock_tokens_per_minute
 }

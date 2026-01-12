@@ -419,15 +419,37 @@ variable "enable_dynamodb_quotas" {
 }
 
 variable "dynamodb_table_limit" {
-  description = <<-EOT
-    Maximum number of DynamoDB tables.
-
-    NOTE: DynamoDB capacity (RCU/WCU) is not directly limited by service quotas.
-    Cost depends on provisioned capacity or on-demand usage.
-    Consider using AWS Budgets with actions for DynamoDB cost control.
-  EOT
+  description = "Maximum number of DynamoDB tables"
   type        = number
   default     = 50
+}
+
+variable "dynamodb_read_capacity_limit" {
+  description = <<-EOT
+    Maximum account-level DynamoDB Read Capacity Units.
+
+    24-HOUR COST ANALYSIS:
+    - Provisioned RCU @ $0.00013/RCU-hour
+    - 1000 RCU × 24 hours = $3.12/day
+    - Default 80,000 RCU = $249.60/day (too high!)
+    - Setting to 1000 RCU = ~$3/day max
+  EOT
+  type        = number
+  default     = 1000
+}
+
+variable "dynamodb_write_capacity_limit" {
+  description = <<-EOT
+    Maximum account-level DynamoDB Write Capacity Units.
+
+    24-HOUR COST ANALYSIS:
+    - Provisioned WCU @ $0.00065/WCU-hour
+    - 1000 WCU × 24 hours = $15.60/day
+    - Default 80,000 WCU = $1,248/day (DANGEROUS!)
+    - Setting to 1000 WCU = ~$16/day max
+  EOT
+  type        = number
+  default     = 1000
 }
 
 # -----------------------------------------------------------------------------
@@ -472,6 +494,31 @@ variable "cloudwatch_log_group_limit" {
   EOT
   type        = number
   default     = 50
+}
+
+# -----------------------------------------------------------------------------
+# BEDROCK QUOTAS
+# -----------------------------------------------------------------------------
+
+variable "enable_bedrock_quotas" {
+  description = "Enable Bedrock service quota limits"
+  type        = bool
+  default     = true
+}
+
+variable "bedrock_tokens_per_minute" {
+  description = <<-EOT
+    Maximum tokens per minute for Anthropic Claude models.
+
+    24-HOUR COST ANALYSIS:
+    - Claude 3 Sonnet: ~$0.003/1K input, $0.015/1K output
+    - 100K tokens/min × 60 min × 24 hr = 144M tokens/day
+    - At avg $0.01/1K tokens = $1,440/day (too high!)
+    - 10K tokens/min = $144/day max
+    - 5K tokens/min = $72/day max (reasonable)
+  EOT
+  type        = number
+  default     = 10000
 }
 
 # -----------------------------------------------------------------------------

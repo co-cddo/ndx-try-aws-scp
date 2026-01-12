@@ -113,9 +113,11 @@ module "service_quotas" {
   alb_limit         = 5
   nlb_limit         = 5
 
-  # DynamoDB quotas - table count only (capacity not limitable via quotas)
-  enable_dynamodb_quotas = var.enable_service_quotas
-  dynamodb_table_limit   = 50
+  # DynamoDB quotas - CRITICAL: limit capacity to prevent cost explosion
+  enable_dynamodb_quotas        = var.enable_service_quotas
+  dynamodb_table_limit          = 50
+  dynamodb_read_capacity_limit  = 1000 # ~$3/day max (default 80,000 = $250/day!)
+  dynamodb_write_capacity_limit = 1000 # ~$16/day max (default 80,000 = $1,248/day!)
 
   # Kinesis - 0 shards (blocked in SCP)
   enable_kinesis_quotas = var.enable_service_quotas
@@ -124,6 +126,10 @@ module "service_quotas" {
   # CloudWatch - reasonable log group limit
   enable_cloudwatch_quotas   = var.enable_service_quotas
   cloudwatch_log_group_limit = 50
+
+  # Bedrock quotas - limit token usage to control AI costs
+  enable_bedrock_quotas     = var.enable_service_quotas
+  bedrock_tokens_per_minute = 10000 # ~$144/day max at avg pricing
 
   # Enable template association for automatic application
   enable_template_association = var.enable_service_quotas
