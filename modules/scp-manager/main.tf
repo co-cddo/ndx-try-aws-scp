@@ -261,80 +261,236 @@ resource "aws_organizations_policy_attachment" "limit_regions" {
 }
 
 # =============================================================================
-# NEW SCP: Cost Avoidance
+# ENHANCED SCP: Cost Avoidance
 # =============================================================================
-# Restrict expensive services and large instance types
+# Comprehensive cost controls for sandbox environments
+# See variables.tf for all configurable limits
 
 resource "aws_organizations_policy" "cost_avoidance" {
-  count = var.enable_cost_avoidance ? 1 : 0
-
   name        = "InnovationSandboxCostAvoidanceScp"
-  description = "SCP to prevent runaway costs by limiting instance sizes and expensive operations. MANAGED BY TERRAFORM."
+  description = "Comprehensive cost controls: EC2, RDS, EBS, ElastiCache, Lambda, and expensive services. MANAGED BY TERRAFORM."
   type        = "SERVICE_CONTROL_POLICY"
 
   content = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "DenyLargeEC2Instances"
-        Effect   = "Deny"
-        Action   = ["ec2:RunInstances"]
-        Resource = ["arn:aws:ec2:*:*:instance/*"]
-        Condition = {
-          "ForAnyValue:StringNotLike" = {
-            "ec2:InstanceType" = var.allowed_ec2_instance_types
+    Statement = concat(
+      # =========================================================================
+      # EC2 CONTROLS
+      # =========================================================================
+      [
+        # Allow only specified EC2 instance types
+        {
+          Sid      = "DenyUnallowedEC2InstanceTypes"
+          Effect   = "Deny"
+          Action   = ["ec2:RunInstances"]
+          Resource = ["arn:aws:ec2:*:*:instance/*"]
+          Condition = {
+            "ForAnyValue:StringNotLike" = {
+              "ec2:InstanceType" = var.allowed_ec2_instance_types
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
           }
-          ArnNotLike = {
-            "aws:PrincipalARN" = local.exempt_role_arns
+        },
+        # Explicitly deny GPU/accelerated/very large instances
+        {
+          Sid      = "DenyGPUAndLargeInstances"
+          Effect   = "Deny"
+          Action   = ["ec2:RunInstances"]
+          Resource = ["arn:aws:ec2:*:*:instance/*"]
+          Condition = {
+            "ForAnyValue:StringLike" = {
+              "ec2:InstanceType" = var.denied_ec2_instance_types
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
           }
-        }
-      },
-      {
-        Sid    = "DenyExpensiveServices"
-        Effect = "Deny"
-        Action = [
-          # Expensive SageMaker operations
-          "sagemaker:CreateEndpoint",
-          "sagemaker:CreateEndpointConfig",
-          "sagemaker:CreateTrainingJob",
-          "sagemaker:CreateHyperParameterTuningJob",
-          # Expensive EMR
-          "elasticmapreduce:RunJobFlow",
-          # GPU instances via specific services
-          "gamelift:CreateFleet",
-          # Large Redshift clusters
-          "redshift:CreateCluster",
-        ]
-        Resource = ["*"]
-        Condition = {
-          ArnNotLike = {
-            "aws:PrincipalARN" = local.exempt_role_arns
+        },
+      ],
+
+      # =========================================================================
+      # EBS CONTROLS
+      # =========================================================================
+      [
+        # Deny expensive provisioned IOPS volume types (io1, io2)
+        {
+          Sid      = "DenyExpensiveEBSVolumeTypes"
+          Effect   = "Deny"
+          Action   = ["ec2:CreateVolume", "ec2:RunInstances"]
+          Resource = ["arn:aws:ec2:*:*:volume/*"]
+          Condition = {
+            "ForAnyValue:StringEquals" = {
+              "ec2:VolumeType" = var.denied_ebs_volume_types
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
           }
-        }
-      },
-      {
-        Sid      = "LimitEKSNodegroupSize"
-        Effect   = "Deny"
-        Action   = ["eks:CreateNodegroup", "eks:UpdateNodegroupConfig"]
-        Resource = ["*"]
-        Condition = {
-          "NumericGreaterThan" = {
-            "eks:maxSize" = "5"
+        },
+        # Limit EBS volume size
+        {
+          Sid      = "DenyLargeEBSVolumes"
+          Effect   = "Deny"
+          Action   = ["ec2:CreateVolume", "ec2:RunInstances"]
+          Resource = ["arn:aws:ec2:*:*:volume/*"]
+          Condition = {
+            NumericGreaterThan = {
+              "ec2:VolumeSize" = tostring(var.max_ebs_volume_size_gb)
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
           }
-          ArnNotLike = {
-            "aws:PrincipalARN" = local.exempt_role_arns
+        },
+      ],
+
+      # =========================================================================
+      # RDS CONTROLS
+      # =========================================================================
+      [
+        # Allow only specified RDS instance classes
+        {
+          Sid      = "DenyUnallowedRDSInstanceClasses"
+          Effect   = "Deny"
+          Action   = ["rds:CreateDBInstance", "rds:CreateDBCluster", "rds:ModifyDBInstance", "rds:ModifyDBCluster"]
+          Resource = ["*"]
+          Condition = {
+            "ForAnyValue:StringNotLike" = {
+              "rds:DatabaseClass" = var.allowed_rds_instance_classes
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
           }
-        }
-      }
-    ]
+        },
+      ],
+
+      # Conditionally deny Multi-AZ (doubles RDS cost)
+      var.allow_rds_multi_az ? [] : [
+        {
+          Sid      = "DenyRDSMultiAZ"
+          Effect   = "Deny"
+          Action   = ["rds:CreateDBInstance", "rds:ModifyDBInstance"]
+          Resource = ["*"]
+          Condition = {
+            Bool = {
+              "rds:MultiAz" = "true"
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ],
+
+      # =========================================================================
+      # ELASTICACHE CONTROLS
+      # =========================================================================
+      [
+        # Allow only specified ElastiCache node types
+        {
+          Sid      = "DenyUnallowedElastiCacheNodeTypes"
+          Effect   = "Deny"
+          Action   = ["elasticache:CreateCacheCluster", "elasticache:CreateReplicationGroup", "elasticache:ModifyCacheCluster", "elasticache:ModifyReplicationGroup"]
+          Resource = ["*"]
+          Condition = {
+            "ForAnyValue:StringNotEqualsIgnoreCase" = {
+              "elasticache:CacheNodeType" = var.allowed_elasticache_node_types
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ],
+
+      # =========================================================================
+      # LAMBDA CONTROLS
+      # =========================================================================
+      var.block_lambda_provisioned_concurrency ? [
+        {
+          Sid      = "DenyLambdaProvisionedConcurrency"
+          Effect   = "Deny"
+          Action   = ["lambda:PutProvisionedConcurrencyConfig"]
+          Resource = ["*"]
+          Condition = {
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ] : [],
+
+      # =========================================================================
+      # EKS CONTROLS
+      # =========================================================================
+      [
+        {
+          Sid      = "LimitEKSNodegroupSize"
+          Effect   = "Deny"
+          Action   = ["eks:CreateNodegroup", "eks:UpdateNodegroupConfig"]
+          Resource = ["*"]
+          Condition = {
+            NumericGreaterThan = {
+              "eks:maxSize" = tostring(var.max_eks_nodegroup_size)
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ],
+
+      # =========================================================================
+      # EXPENSIVE SERVICES - COMPLETE BLOCKS
+      # =========================================================================
+      [
+        # Original expensive services
+        {
+          Sid    = "DenyExpensiveManagedServices"
+          Effect = "Deny"
+          Action = [
+            # SageMaker - ML endpoints and training are expensive
+            "sagemaker:CreateEndpoint",
+            "sagemaker:CreateEndpointConfig",
+            "sagemaker:CreateTrainingJob",
+            "sagemaker:CreateHyperParameterTuningJob",
+            # EMR - big data clusters
+            "elasticmapreduce:RunJobFlow",
+            # GameLift - game server hosting
+            "gamelift:CreateFleet",
+            # Redshift - data warehouse clusters
+            "redshift:CreateCluster",
+          ]
+          Resource = ["*"]
+          Condition = {
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+        # Additional expensive services (configurable)
+        {
+          Sid      = "DenyAdditionalExpensiveServices"
+          Effect   = "Deny"
+          Action   = var.block_expensive_services
+          Resource = ["*"]
+          Condition = {
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ]
+    )
   })
 
   tags = var.tags
 }
 
 resource "aws_organizations_policy_attachment" "cost_avoidance" {
-  count = var.enable_cost_avoidance ? 1 : 0
-
-  policy_id = aws_organizations_policy.cost_avoidance[0].id
+  policy_id = aws_organizations_policy.cost_avoidance.id
   target_id = coalesce(var.cost_avoidance_ou_id, var.sandbox_ou_id)
 }

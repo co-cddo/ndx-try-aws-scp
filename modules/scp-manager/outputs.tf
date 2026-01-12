@@ -19,13 +19,13 @@ output "limit_regions_policy_arn" {
 }
 
 output "cost_avoidance_policy_id" {
-  description = "ID of the Cost Avoidance SCP (if enabled)"
-  value       = var.enable_cost_avoidance ? aws_organizations_policy.cost_avoidance[0].id : null
+  description = "ID of the Cost Avoidance SCP"
+  value       = aws_organizations_policy.cost_avoidance.id
 }
 
 output "cost_avoidance_policy_arn" {
-  description = "ARN of the Cost Avoidance SCP (if enabled)"
-  value       = var.enable_cost_avoidance ? aws_organizations_policy.cost_avoidance[0].arn : null
+  description = "ARN of the Cost Avoidance SCP"
+  value       = aws_organizations_policy.cost_avoidance.arn
 }
 
 output "exempt_role_arns" {

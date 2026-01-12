@@ -21,12 +21,6 @@ variable "sandbox_ou_id" {
   type        = string
 }
 
-variable "enable_cost_avoidance" {
-  description = "Whether to create cost avoidance SCP"
-  type        = bool
-  default     = true
-}
-
 variable "cost_avoidance_ou_id" {
   description = "OU ID to attach cost avoidance SCP (defaults to Active OU for running sandboxes)"
   type        = string

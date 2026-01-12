@@ -35,19 +35,46 @@ textract:GetLendingAnalysisSummary
 
 **Why it was broken**: Sync operations (immediate response) were allowed, but async operations (required for documents >1 page) were not.
 
-#### 2. Cost Avoidance SCP (NEW)
+#### 2. Cost Avoidance SCP (ENHANCED)
 **File**: `modules/scp-manager/main.tf` (cost_avoidance)
 
-Creates `InnovationSandboxCostAvoidanceScp` that:
-- Limits EC2 to: t2/t3/t3a (micro→large), m5/m6i (large→xlarge)
-- Blocks expensive operations:
-  - `sagemaker:CreateEndpoint`, `CreateTrainingJob`
-  - `elasticmapreduce:RunJobFlow`
-  - `redshift:CreateCluster`
-  - `gamelift:CreateFleet`
-- Limits EKS nodegroups to max 5 nodes
+Creates `InnovationSandboxCostAvoidanceScp` with comprehensive controls:
 
-**Why needed**: No guardrails existed. Users could spin up p4d.24xlarge GPU instances or SageMaker endpoints and blow through budgets before 24-hour billing reconciliation.
+**EC2 Controls:**
+- Allowlist of permitted instance types (t2, t3, t3a small-large, m5/m6i large-xlarge)
+- Explicit deny for GPU/accelerated instances (p2-p5, g3-g6, inf1-inf2, trn1-trn2, dl1-dl2)
+- Blocks very large instances (12xlarge and above, metal)
+- Blocks dedicated hosts
+
+**EBS Controls:**
+- Maximum volume size: 500GB (configurable)
+- Blocks expensive provisioned IOPS types (io1, io2)
+
+**RDS Controls:**
+- Allowlist of permitted instance classes (db.t3/t4g, db.m5/m6g/m6i up to xlarge)
+- Blocks Multi-AZ deployments (doubles cost) - configurable
+
+**ElastiCache Controls:**
+- Allowlist of permitted node types (cache.t3/t4g, cache.m5/m6g up to large)
+
+**Lambda Controls:**
+- Blocks provisioned concurrency (expensive always-on)
+
+**EKS Controls:**
+- Maximum nodegroup size: 5 nodes (configurable)
+
+**Blocked Expensive Services:**
+- SageMaker endpoints and training jobs
+- EMR clusters
+- Redshift clusters
+- MSK (Kafka) clusters
+- FSx file systems
+- Kinesis streams
+- QuickSight user creation
+- Reserved capacity purchases
+- Savings plans
+
+**Why needed**: No guardrails existed. Users could spin up expensive resources and blow through budgets before 24-hour billing reconciliation.
 
 ### OU Structure (Important Context)
 

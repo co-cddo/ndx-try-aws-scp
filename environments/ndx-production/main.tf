@@ -43,7 +43,6 @@ module "scp_manager" {
   managed_regions = var.managed_regions
   sandbox_ou_id   = var.sandbox_ou_id
 
-  enable_cost_avoidance      = var.enable_cost_avoidance
   cost_avoidance_ou_id       = var.cost_avoidance_ou_id
   allowed_ec2_instance_types = var.allowed_ec2_instance_types
 
