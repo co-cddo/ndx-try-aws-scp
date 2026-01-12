@@ -27,6 +27,12 @@ variable "enable_cost_avoidance" {
   default     = true
 }
 
+variable "cost_avoidance_ou_id" {
+  description = "OU ID to attach cost avoidance SCP (defaults to Active OU for running sandboxes)"
+  type        = string
+  default     = null
+}
+
 variable "allowed_ec2_instance_types" {
   description = "EC2 instance types allowed in sandboxes"
   type        = list(string)
