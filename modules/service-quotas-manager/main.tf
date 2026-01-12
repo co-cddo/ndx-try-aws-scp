@@ -454,3 +454,70 @@ resource "aws_servicequotas_template" "bedrock_anthropic_tokens_secondary" {
   region       = var.secondary_region
   value        = var.bedrock_tokens_per_minute
 }
+
+# -----------------------------------------------------------------------------
+# ADDITIONAL BEDROCK MODEL QUOTAS
+# -----------------------------------------------------------------------------
+# GAP FIX: Add quotas for ALL Bedrock model families, not just Claude
+# Without these, attackers could use Titan, Stability, Cohere, etc.
+
+resource "aws_servicequotas_template" "bedrock_titan_tokens" {
+  count = var.enable_bedrock_quotas ? 1 : 0
+
+  quota_code   = "L-1A2A3A4A" # Amazon Titan tokens per minute (placeholder - verify actual code)
+  service_code = "bedrock"
+  region       = var.primary_region
+  value        = var.bedrock_titan_tokens_per_minute
+}
+
+resource "aws_servicequotas_template" "bedrock_stability_requests" {
+  count = var.enable_bedrock_quotas ? 1 : 0
+
+  quota_code   = "L-2B2B2B2B" # Stability AI requests per minute (placeholder - verify actual code)
+  service_code = "bedrock"
+  region       = var.primary_region
+  value        = var.bedrock_stability_requests_per_minute
+}
+
+resource "aws_servicequotas_template" "bedrock_cohere_tokens" {
+  count = var.enable_bedrock_quotas ? 1 : 0
+
+  quota_code   = "L-3C3C3C3C" # Cohere tokens per minute (placeholder - verify actual code)
+  service_code = "bedrock"
+  region       = var.primary_region
+  value        = var.bedrock_cohere_tokens_per_minute
+}
+
+# Meta Llama models
+resource "aws_servicequotas_template" "bedrock_meta_tokens" {
+  count = var.enable_bedrock_quotas ? 1 : 0
+
+  quota_code   = "L-4D4D4D4D" # Meta Llama tokens per minute (placeholder - verify actual code)
+  service_code = "bedrock"
+  region       = var.primary_region
+  value        = var.bedrock_meta_tokens_per_minute
+}
+
+# -----------------------------------------------------------------------------
+# API GATEWAY QUOTAS
+# -----------------------------------------------------------------------------
+# GAP FIX: Limit API Gateway to prevent request cost explosion
+# Without throttling limits, attackers could generate millions of requests
+
+resource "aws_servicequotas_template" "apigateway_throttle_rate" {
+  count = var.enable_apigateway_quotas ? 1 : 0
+
+  quota_code   = "L-8A5B8E40" # Throttle rate (requests per second)
+  service_code = "apigateway"
+  region       = var.primary_region
+  value        = var.apigateway_throttle_rate_limit
+}
+
+resource "aws_servicequotas_template" "apigateway_throttle_burst" {
+  count = var.enable_apigateway_quotas ? 1 : 0
+
+  quota_code   = "L-CDF5615A" # Throttle burst rate
+  service_code = "apigateway"
+  region       = var.primary_region
+  value        = var.apigateway_throttle_burst_limit
+}

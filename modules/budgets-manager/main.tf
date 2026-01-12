@@ -675,3 +675,268 @@ resource "aws_budgets_budget" "data_transfer_daily" {
 
   tags = var.tags
 }
+
+# =============================================================================
+# GAP FIX: ADDITIONAL SERVICE BUDGETS FOR ATTACK VECTORS
+# =============================================================================
+# These budgets address cost attack vectors identified in security analysis.
+
+# -----------------------------------------------------------------------------
+# CloudWatch Logs Budget (CRITICAL - $0.50/GB ingestion)
+# -----------------------------------------------------------------------------
+# ATTACK SCENARIO: Lambda flooding CloudWatch with log data
+# 100 Lambda × 5MB/sec × 24hr = 43.2 TB/day × $0.50/GB = $21,600/day!
+# With reduced concurrent (25): Still ~$5,400/day potential
+# Budget provides detection and alerting
+
+resource "aws_budgets_budget" "cloudwatch_daily" {
+  count = var.create_service_budgets ? 1 : 0
+
+  name         = "${var.namespace}-sandbox-cloudwatch-daily"
+  budget_type  = "COST"
+  limit_amount = tostring(var.cloudwatch_daily_limit)
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_types {
+    include_credit             = false
+    include_discount           = true
+    include_other_subscription = true
+    include_recurring          = true
+    include_refund             = false
+    include_subscription       = true
+    include_support            = true
+    include_tax                = true
+    include_upfront            = true
+    use_blended                = false
+  }
+
+  cost_filter {
+    name   = "Service"
+    values = ["AmazonCloudWatch"]
+  }
+
+  dynamic "cost_filter" {
+    for_each = var.sandbox_account_ids != null ? [1] : []
+    content {
+      name   = "LinkedAccount"
+      values = var.sandbox_account_ids
+    }
+  }
+
+  # Early warning at 50% for this critical gap
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 50
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  tags = var.tags
+}
+
+# -----------------------------------------------------------------------------
+# Step Functions Budget (HIGH - $0.025/1000 state transitions)
+# -----------------------------------------------------------------------------
+# ATTACK SCENARIO: State machines with many states triggered in loops
+# Could generate millions of state transitions = $100s-$1000s/day
+
+resource "aws_budgets_budget" "stepfunctions_daily" {
+  count = var.create_service_budgets ? 1 : 0
+
+  name         = "${var.namespace}-sandbox-stepfunctions-daily"
+  budget_type  = "COST"
+  limit_amount = tostring(var.stepfunctions_daily_limit)
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_types {
+    include_credit             = false
+    include_discount           = true
+    include_other_subscription = true
+    include_recurring          = true
+    include_refund             = false
+    include_subscription       = true
+    include_support            = true
+    include_tax                = true
+    include_upfront            = true
+    use_blended                = false
+  }
+
+  cost_filter {
+    name   = "Service"
+    values = ["AWS Step Functions"]
+  }
+
+  dynamic "cost_filter" {
+    for_each = var.sandbox_account_ids != null ? [1] : []
+    content {
+      name   = "LinkedAccount"
+      values = var.sandbox_account_ids
+    }
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  tags = var.tags
+}
+
+# -----------------------------------------------------------------------------
+# S3 Budget (MEDIUM - $5/million PUT requests)
+# -----------------------------------------------------------------------------
+# ATTACK SCENARIO: Scripts generating millions of S3 PUT/LIST requests
+# With compute limits: ~$400-500/day potential
+
+resource "aws_budgets_budget" "s3_daily" {
+  count = var.create_service_budgets ? 1 : 0
+
+  name         = "${var.namespace}-sandbox-s3-daily"
+  budget_type  = "COST"
+  limit_amount = tostring(var.s3_daily_limit)
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_types {
+    include_credit             = false
+    include_discount           = true
+    include_other_subscription = true
+    include_recurring          = true
+    include_refund             = false
+    include_subscription       = true
+    include_support            = true
+    include_tax                = true
+    include_upfront            = true
+    use_blended                = false
+  }
+
+  cost_filter {
+    name   = "Service"
+    values = ["Amazon Simple Storage Service"]
+  }
+
+  dynamic "cost_filter" {
+    for_each = var.sandbox_account_ids != null ? [1] : []
+    content {
+      name   = "LinkedAccount"
+      values = var.sandbox_account_ids
+    }
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  tags = var.tags
+}
+
+# -----------------------------------------------------------------------------
+# API Gateway Budget (MEDIUM - $3.50/million requests)
+# -----------------------------------------------------------------------------
+# ATTACK SCENARIO: Scripts generating millions of API requests
+# Combined with throttling quota, limits exposure
+
+resource "aws_budgets_budget" "apigateway_daily" {
+  count = var.create_service_budgets ? 1 : 0
+
+  name         = "${var.namespace}-sandbox-apigateway-daily"
+  budget_type  = "COST"
+  limit_amount = tostring(var.apigateway_daily_limit)
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_types {
+    include_credit             = false
+    include_discount           = true
+    include_other_subscription = true
+    include_recurring          = true
+    include_refund             = false
+    include_subscription       = true
+    include_support            = true
+    include_tax                = true
+    include_upfront            = true
+    use_blended                = false
+  }
+
+  cost_filter {
+    name   = "Service"
+    values = ["Amazon API Gateway"]
+  }
+
+  dynamic "cost_filter" {
+    for_each = var.sandbox_account_ids != null ? [1] : []
+    content {
+      name   = "LinkedAccount"
+      values = var.sandbox_account_ids
+    }
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  tags = var.tags
+}

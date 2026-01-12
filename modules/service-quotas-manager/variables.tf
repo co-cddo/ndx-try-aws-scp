@@ -221,14 +221,16 @@ variable "lambda_concurrent_executions" {
   description = <<-EOT
     Maximum concurrent Lambda executions.
 
-    24-HOUR COST ANALYSIS:
+    24-HOUR COST ANALYSIS (GAP FIX - REDUCED FROM 100 TO 25):
     - Lambda @ $0.0000166667/GB-second
-    - 100 concurrent @ 1GB @ 1sec each, running constantly:
-      100 * 60 * 60 * 24 = 8.64M invocations = ~$144/day (extreme case)
-    - More realistic: 100 concurrent handles normal API loads
+    - ATTACK SCENARIO: Attacker creates Lambda with MAX memory (10GB)
+      - 100 concurrent @ 10GB running 24hr = $1,440/day (DANGEROUS!)
+      - 25 concurrent @ 10GB running 24hr = $360/day (still high but bounded)
+    - Normal usage: 25 concurrent handles most API/event loads
+    - If legitimate need for more: request quota increase with justification
   EOT
   type        = number
-  default     = 100
+  default     = 25 # REDUCED from 100 to limit memory-based cost attacks
 }
 
 # -----------------------------------------------------------------------------
@@ -519,6 +521,76 @@ variable "bedrock_tokens_per_minute" {
   EOT
   type        = number
   default     = 10000
+}
+
+# GAP FIX: Additional Bedrock model family quotas
+variable "bedrock_titan_tokens_per_minute" {
+  description = <<-EOT
+    Maximum tokens per minute for Amazon Titan models.
+    Without this, attackers could bypass Claude quotas by using Titan.
+  EOT
+  type        = number
+  default     = 5000 # Lower than Claude to limit alternative attack vectors
+}
+
+variable "bedrock_stability_requests_per_minute" {
+  description = <<-EOT
+    Maximum requests per minute for Stability AI image generation.
+    Image generation: ~$0.04-0.08 per image
+    5 req/min × 60 × 24 = 7,200 images/day × $0.08 = ~$576/day max
+  EOT
+  type        = number
+  default     = 5 # Very restrictive - image gen is expensive
+}
+
+variable "bedrock_cohere_tokens_per_minute" {
+  description = <<-EOT
+    Maximum tokens per minute for Cohere models.
+    Without this, attackers could bypass Claude quotas.
+  EOT
+  type        = number
+  default     = 5000
+}
+
+variable "bedrock_meta_tokens_per_minute" {
+  description = <<-EOT
+    Maximum tokens per minute for Meta Llama models.
+    Without this, attackers could bypass Claude quotas.
+  EOT
+  type        = number
+  default     = 5000
+}
+
+# -----------------------------------------------------------------------------
+# API GATEWAY QUOTAS
+# -----------------------------------------------------------------------------
+# GAP FIX: Without throttling limits, attackers could generate millions of
+# API requests costing $3.50+ per million
+
+variable "enable_apigateway_quotas" {
+  description = "Enable API Gateway service quota limits"
+  type        = bool
+  default     = true
+}
+
+variable "apigateway_throttle_rate_limit" {
+  description = <<-EOT
+    Maximum requests per second for API Gateway (account level throttle).
+
+    24-HOUR COST ANALYSIS:
+    - REST API: $3.50/million requests
+    - 100 req/sec × 86,400 sec = 8.64M requests/day
+    - 8.64M × $3.50/1M = $30.24/day max
+    - Lower to 50 req/sec = $15.12/day max
+  EOT
+  type        = number
+  default     = 100 # 100 req/sec = ~$30/day max
+}
+
+variable "apigateway_throttle_burst_limit" {
+  description = "Maximum burst rate for API Gateway"
+  type        = number
+  default     = 200
 }
 
 # -----------------------------------------------------------------------------

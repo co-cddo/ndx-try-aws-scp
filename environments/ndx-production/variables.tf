@@ -180,3 +180,37 @@ variable "sandbox_account_ids" {
   type        = list(string)
   default     = null
 }
+
+# =============================================================================
+# COST ANOMALY DETECTION (FREE - ML-BASED)
+# =============================================================================
+
+variable "enable_cost_anomaly_detection" {
+  description = "Enable AWS Cost Anomaly Detection (FREE service using ML to detect unusual spending)"
+  type        = bool
+  default     = true
+}
+
+# =============================================================================
+# DYNAMODB BILLING ENFORCER (GAP FIX)
+# =============================================================================
+
+variable "enable_dynamodb_billing_enforcer" {
+  description = <<-EOT
+    Enable DynamoDB billing mode enforcement.
+
+    GAP FIX: DynamoDB On-Demand mode bypasses WCU/RCU service quotas.
+    This module detects On-Demand tables and converts them to Provisioned mode.
+
+    Without this: Attackers can create On-Demand tables with UNLIMITED request costs.
+    With this: Tables are auto-converted to Provisioned with bounded capacity.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "dynamodb_exempt_prefixes" {
+  description = "List of DynamoDB table name prefixes to exempt from billing enforcement"
+  type        = list(string)
+  default     = []
+}
