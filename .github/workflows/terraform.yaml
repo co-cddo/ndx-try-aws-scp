@@ -29,8 +29,8 @@ env:
   # ndx_InnovationSandboxAccountPool - where ISB SCPs are attached
   TF_VAR_sandbox_ou_id: "ou-2laj-4dyae1oa"
   TF_VAR_namespace: "ndx"
-  # eu-west-2 added for UK-based scenarios (LocalGov Drupal, etc.)
-  TF_VAR_managed_regions: '["us-east-1", "us-west-2", "eu-west-2"]'
+  # Only US regions allowed - eu-west-2 is intentionally forbidden
+  TF_VAR_managed_regions: '["us-east-1", "us-west-2"]'
   TF_VAR_enable_cost_avoidance: "true"
 
 jobs:

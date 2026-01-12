@@ -22,7 +22,7 @@ After analyzing the current SCPs attached to `ou-2laj-4dyae1oa` (ndx_InnovationS
 |-------|--------|---------|
 | **Textract** | Partially fixed | Read operations (AnalyzeDocument, etc.) already in allowlist. **Missing async operations** (StartDocumentAnalysis, etc.) needed for multi-page documents. |
 | **Bedrock cross-region** | Already fixed | LimitRegionsScp already has `bedrock:InferenceProfileArn` exception |
-| **ECS/Secrets Manager** | **REGION ISSUE** | Root cause: LimitRegions SCP blocks ALL actions outside us-east-1/us-west-2. UK scenarios (LocalGov Drupal) deploy in eu-west-2 → blocked. **Fix: Add eu-west-2 to managed_regions** |
+| **ECS/Secrets Manager** | **By design** | Region restriction to us-east-1/us-west-2 is intentional. UK scenarios must deploy to US regions. |
 | **Cost controls** | New SCP needed | Will create `InnovationSandboxCostAvoidanceScp` |
 
 ### OU Structure
