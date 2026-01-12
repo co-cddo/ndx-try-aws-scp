@@ -32,6 +32,8 @@ env:
   # Only US regions allowed - eu-west-2 is intentionally forbidden
   TF_VAR_managed_regions: '["us-east-1", "us-west-2"]'
   TF_VAR_enable_cost_avoidance: "true"
+  # Active OU - where running sandboxes are (cost avoidance attached here to avoid 5 SCP limit on parent)
+  TF_VAR_cost_avoidance_ou_id: "ou-2laj-sre4rnjs"
 
 jobs:
   # ============================================

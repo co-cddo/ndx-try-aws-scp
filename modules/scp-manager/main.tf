@@ -336,5 +336,5 @@ resource "aws_organizations_policy_attachment" "cost_avoidance" {
   count = var.enable_cost_avoidance ? 1 : 0
 
   policy_id = aws_organizations_policy.cost_avoidance[0].id
-  target_id = var.sandbox_ou_id
+  target_id = coalesce(var.cost_avoidance_ou_id, var.sandbox_ou_id)
 }

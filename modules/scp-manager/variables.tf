@@ -33,6 +33,12 @@ variable "enable_cost_avoidance" {
   default     = true
 }
 
+variable "cost_avoidance_ou_id" {
+  description = "The OU ID to attach the cost avoidance SCP to (defaults to sandbox_ou_id if not set)"
+  type        = string
+  default     = null
+}
+
 variable "allowed_ec2_instance_types" {
   description = "List of allowed EC2 instance type patterns (e.g., 't3.*', 'm5.large')"
   type        = list(string)
