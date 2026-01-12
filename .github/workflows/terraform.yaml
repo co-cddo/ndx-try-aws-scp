@@ -124,17 +124,24 @@ jobs:
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
+        env:
+          PLAN_OUTPUT: ${{ steps.plan.outputs.plan_output }}
+          FMT_OUTCOME: ${{ steps.fmt.outcome }}
+          INIT_OUTCOME: ${{ steps.init.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
         with:
           script: |
-            const output = `#### Terraform Format 🖌 \`${{ steps.fmt.outcome }}\`
-            #### Terraform Init ⚙️ \`${{ steps.init.outcome }}\`
-            #### Terraform Validate 🤖 \`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+            const planOutput = process.env.PLAN_OUTPUT || 'No plan output available';
+            const output = `#### Terraform Format 🖌 \`${process.env.FMT_OUTCOME}\`
+            #### Terraform Init ⚙️ \`${process.env.INIT_OUTCOME}\`
+            #### Terraform Validate 🤖 \`${process.env.VALIDATE_OUTCOME}\`
+            #### Terraform Plan 📖 \`${process.env.PLAN_OUTCOME}\`
 
             <details><summary>Show Plan</summary>
 
             \`\`\`terraform
-            ${{ steps.plan.outputs.plan_output }}
+            ${planOutput}
             \`\`\`
 
             </details>
