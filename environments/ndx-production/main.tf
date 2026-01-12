@@ -152,7 +152,7 @@ module "budgets" {
 
   # SNS notifications
   create_sns_topic = var.enable_budgets
-  alert_email      = var.budget_alert_email
+  alert_emails     = var.budget_alert_emails
 
   # Daily budget - matches existing ClickOps budget
   daily_budget_name  = var.daily_budget_name

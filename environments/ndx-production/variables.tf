@@ -99,10 +99,14 @@ variable "enable_budgets" {
   default     = true
 }
 
-variable "budget_alert_email" {
-  description = "Email address for budget alert notifications"
-  type        = string
-  default     = null
+variable "budget_alert_emails" {
+  description = "Email addresses for budget alert notifications (preserving existing subscribers)"
+  type        = list(string)
+  default = [
+    "chris.Nesbitt-Smith@digital.cabinet-office.gov.uk",
+    "ndx-aaaaqa6ovbj5owumuw4jkzc44m@gds.slack.com",
+    "ndx@dsit.gov.uk"
+  ]
 }
 
 variable "daily_budget_name" {

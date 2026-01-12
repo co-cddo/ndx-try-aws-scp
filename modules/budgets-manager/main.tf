@@ -197,7 +197,7 @@ resource "aws_budgets_budget" "daily_cost" {
     threshold                  = 10
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -207,7 +207,7 @@ resource "aws_budgets_budget" "daily_cost" {
     threshold                  = 50
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -217,7 +217,7 @@ resource "aws_budgets_budget" "daily_cost" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -293,7 +293,7 @@ resource "aws_budgets_budget" "monthly_cost" {
     threshold                  = 85
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -303,7 +303,7 @@ resource "aws_budgets_budget" "monthly_cost" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -313,7 +313,7 @@ resource "aws_budgets_budget" "monthly_cost" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "FORECASTED"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -366,7 +366,7 @@ resource "aws_budgets_budget" "ec2_daily" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -375,7 +375,7 @@ resource "aws_budgets_budget" "ec2_daily" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -423,7 +423,7 @@ resource "aws_budgets_budget" "rds_daily" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -432,7 +432,7 @@ resource "aws_budgets_budget" "rds_daily" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -480,7 +480,7 @@ resource "aws_budgets_budget" "lambda_daily" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -489,7 +489,7 @@ resource "aws_budgets_budget" "lambda_daily" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -537,7 +537,7 @@ resource "aws_budgets_budget" "dynamodb_daily" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -546,7 +546,7 @@ resource "aws_budgets_budget" "dynamodb_daily" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -594,7 +594,7 @@ resource "aws_budgets_budget" "bedrock_daily" {
     threshold                  = 50
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -603,7 +603,7 @@ resource "aws_budgets_budget" "bedrock_daily" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -612,7 +612,7 @@ resource "aws_budgets_budget" "bedrock_daily" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -660,7 +660,7 @@ resource "aws_budgets_budget" "data_transfer_daily" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
@@ -669,7 +669,7 @@ resource "aws_budgets_budget" "data_transfer_daily" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_email_addresses = var.alert_emails
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 

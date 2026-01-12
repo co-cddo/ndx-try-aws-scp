@@ -73,10 +73,14 @@ variable "sns_topic_arns" {
   default     = []
 }
 
-variable "alert_email" {
-  description = "Email address for direct budget alert subscriptions"
-  type        = string
-  default     = null
+variable "alert_emails" {
+  description = "Email addresses for direct budget alert subscriptions"
+  type        = list(string)
+  default = [
+    "chris.Nesbitt-Smith@digital.cabinet-office.gov.uk",
+    "ndx-aaaaqa6ovbj5owumuw4jkzc44m@gds.slack.com",
+    "ndx@dsit.gov.uk"
+  ]
 }
 
 # -----------------------------------------------------------------------------
