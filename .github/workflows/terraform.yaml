@@ -25,7 +25,10 @@ env:
   TF_VERSION: "1.7.0"
   AWS_REGION: "eu-west-2"
   WORKING_DIR: "environments/ndx-production"
-  # Terraform variables (TF_VAR_* are picked up automatically)
+
+  # ==========================================================================
+  # LAYER 1: SERVICE CONTROL POLICIES (SCPs)
+  # ==========================================================================
   # ndx_InnovationSandboxAccountPool - where ISB SCPs are attached
   TF_VAR_sandbox_ou_id: "ou-2laj-4dyae1oa"
   TF_VAR_namespace: "ndx"
@@ -33,6 +36,31 @@ env:
   TF_VAR_managed_regions: '["us-east-1", "us-west-2"]'
   # Active OU - where running sandboxes are (cost avoidance attached here to avoid 5 SCP limit on parent)
   TF_VAR_cost_avoidance_ou_id: "ou-2laj-sre4rnjs"
+
+  # ==========================================================================
+  # LAYER 2: SERVICE QUOTAS (24-HOUR LEASE OPTIMIZED)
+  # ==========================================================================
+  TF_VAR_enable_service_quotas: "true"
+  TF_VAR_ec2_vcpu_quota: "64"         # 64 vCPUs @ ~$77/day max
+  TF_VAR_ebs_storage_quota_tib: "1"   # 1 TiB per type, ~$6/day
+  TF_VAR_lambda_concurrency_quota: "100"
+  TF_VAR_rds_instance_quota: "5"      # 5 instances @ ~$20/day
+  TF_VAR_rds_storage_quota_gb: "500"  # 500GB total
+
+  # ==========================================================================
+  # LAYER 3: AWS BUDGETS (FINAL COST DEFENSE)
+  # ==========================================================================
+  TF_VAR_enable_budgets: "true"
+  TF_VAR_daily_budget_limit: "200"        # $200/day total
+  TF_VAR_monthly_budget_limit: "5000"     # $5,000/month total
+  TF_VAR_ec2_daily_budget: "100"          # $100/day EC2
+  TF_VAR_rds_daily_budget: "30"           # $30/day RDS
+  TF_VAR_lambda_daily_budget: "50"        # $50/day Lambda
+  TF_VAR_dynamodb_daily_budget: "50"      # $50/day DynamoDB (critical - not limitable via SCP)
+  TF_VAR_bedrock_daily_budget: "50"       # $50/day Bedrock AI
+  TF_VAR_data_transfer_daily_budget: "20" # $20/day data transfer
+  TF_VAR_enable_budget_automated_actions: "false"  # CAUTION: Enable to auto-stop EC2 at 100%
+  # TF_VAR_budget_alert_email: ""  # Set via GitHub secret if needed
 
 jobs:
   # ============================================

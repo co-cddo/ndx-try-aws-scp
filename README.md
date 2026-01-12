@@ -1,6 +1,63 @@
-# NDX Innovation Sandbox - SCP Override Pattern
+# NDX Innovation Sandbox - Cost Defense System
 
-Terraform module to manage and override Service Control Policies (SCPs) for the NDX Innovation Sandbox deployment.
+Terraform modules for comprehensive cost control in the NDX Innovation Sandbox deployment.
+
+## Three-Layer Defense Architecture
+
+Each sandbox lease is **24 hours**. The defense system prevents runaway costs within that window:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        COST DEFENSE IN DEPTH                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  LAYER 1: SERVICE CONTROL POLICIES (SCPs)                                   │
+│  ─────────────────────────────────────────                                  │
+│  Controls WHAT actions are allowed                                          │
+│  • Instance type allowlists (EC2, RDS, ElastiCache)                         │
+│  • GPU/accelerated instances blocked                                        │
+│  • EBS volume type (no io1/io2) and size limits (500GB)                     │
+│  • Auto Scaling Group max size (10 instances)                               │
+│  • EKS nodegroup max size (5 nodes)                                         │
+│  • 20+ expensive services blocked                                           │
+│                                                                              │
+│  LAYER 2: SERVICE QUOTAS                                                    │
+│  ────────────────────────                                                   │
+│  Controls HOW MANY resources can exist                                      │
+│  • EC2 vCPU limits (64 on-demand, 0 GPU/P/Inf/Trn)                          │
+│  • EBS storage limits (1 TiB per type)                                      │
+│  • RDS instance count (5) and storage (500GB)                               │
+│  • Lambda concurrent executions (100)                                       │
+│  • VPC resources (5 VPCs, 2 NAT gateways/AZ)                                │
+│  • Applied via Service Quota Templates (automatic for new accounts)         │
+│                                                                              │
+│  LAYER 3: AWS BUDGETS                                                       │
+│  ────────────────────                                                       │
+│  Controls HOW MUCH MONEY can be spent                                       │
+│  • Daily budget: $200/day (with alerts at 50%, 80%, 100%, 120%)             │
+│  • Monthly budget: $5,000/month                                             │
+│  • Service-specific budgets (EC2, RDS, Lambda, DynamoDB, Bedrock)           │
+│  • SNS notifications for alerts                                             │
+│  • OPTIONAL: Automated actions (stop EC2 at 100%)                           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Estimated Maximum Daily Cost
+
+Based on default quota limits, the theoretical maximum daily spend is:
+
+| Service | Quota Limit | Max Daily Cost |
+|---------|-------------|----------------|
+| EC2 | 64 vCPUs | ~$77 |
+| EBS | 2 TiB | ~$6 |
+| RDS | 5 instances, 500GB | ~$22 |
+| ElastiCache | 10 nodes | ~$40 |
+| Lambda | 100 concurrent | ~$50 (extreme) |
+| EKS | 2 clusters | ~$5 |
+| NAT Gateways | 6 (2/AZ × 3 AZ) | ~$6 |
+| Load Balancers | 10 (5 ALB + 5 NLB) | ~$5 |
+| **Total** | | **~$160-200/day** |
 
 ---
 

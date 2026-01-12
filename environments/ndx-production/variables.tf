@@ -48,3 +48,119 @@ variable "allowed_ec2_instance_types" {
     "m6i.xlarge"
   ]
 }
+
+# =============================================================================
+# SERVICE QUOTAS (24-HOUR LEASE OPTIMIZED)
+# =============================================================================
+
+variable "enable_service_quotas" {
+  description = "Enable Service Quota Templates for sandbox accounts"
+  type        = bool
+  default     = true
+}
+
+variable "ec2_vcpu_quota" {
+  description = "Maximum vCPUs for On-Demand EC2 instances (24hr: 64 vCPUs @ $0.05/hr = ~$77/day)"
+  type        = number
+  default     = 64
+}
+
+variable "ebs_storage_quota_tib" {
+  description = "Maximum EBS storage per type (gp2/gp3) in TiB (24hr: 1 TiB @ $0.08/GB-month = ~$2.73/day)"
+  type        = number
+  default     = 1
+}
+
+variable "lambda_concurrency_quota" {
+  description = "Maximum Lambda concurrent executions"
+  type        = number
+  default     = 100
+}
+
+variable "rds_instance_quota" {
+  description = "Maximum RDS DB instances (24hr: 5 x db.m5.large @ $4.10/day = ~$20.50/day)"
+  type        = number
+  default     = 5
+}
+
+variable "rds_storage_quota_gb" {
+  description = "Maximum total RDS storage in GB (24hr: 500GB @ $0.115/GB-month = ~$1.92/day)"
+  type        = number
+  default     = 500
+}
+
+# =============================================================================
+# AWS BUDGETS (FINAL COST DEFENSE LAYER)
+# =============================================================================
+
+variable "enable_budgets" {
+  description = "Enable AWS Budgets for cost tracking and alerts"
+  type        = bool
+  default     = true
+}
+
+variable "budget_alert_email" {
+  description = "Email address for budget alert notifications"
+  type        = string
+  default     = null
+}
+
+variable "daily_budget_limit" {
+  description = "Daily cost budget limit in USD (24hr sandbox lease)"
+  type        = number
+  default     = 200
+}
+
+variable "monthly_budget_limit" {
+  description = "Monthly aggregate budget limit in USD"
+  type        = number
+  default     = 5000
+}
+
+variable "ec2_daily_budget" {
+  description = "Daily EC2 compute budget in USD"
+  type        = number
+  default     = 100
+}
+
+variable "rds_daily_budget" {
+  description = "Daily RDS budget in USD"
+  type        = number
+  default     = 30
+}
+
+variable "lambda_daily_budget" {
+  description = "Daily Lambda budget in USD"
+  type        = number
+  default     = 50
+}
+
+variable "dynamodb_daily_budget" {
+  description = "Daily DynamoDB budget in USD (critical - not controllable via SCP/quotas)"
+  type        = number
+  default     = 50
+}
+
+variable "bedrock_daily_budget" {
+  description = "Daily Bedrock AI budget in USD"
+  type        = number
+  default     = 50
+}
+
+variable "data_transfer_daily_budget" {
+  description = "Daily data transfer budget in USD"
+  type        = number
+  default     = 20
+}
+
+variable "enable_budget_automated_actions" {
+  description = "Enable automated budget actions (stop EC2 at 100%). CAUTION: Will stop running instances."
+  type        = bool
+  default     = false
+}
+
+variable "sandbox_account_ids" {
+  description = "List of sandbox account IDs to filter budgets (null = all linked accounts)"
+  type        = list(string)
+  default     = null
+}
