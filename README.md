@@ -53,6 +53,8 @@ Creates `InnovationSandboxCostAvoidanceScp` with comprehensive controls:
 **RDS Controls:**
 - Allowlist of permitted instance classes (db.t3/t4g, db.m5/m6g/m6i up to xlarge)
 - Blocks Multi-AZ deployments (doubles cost) - configurable
+- Blocks Read Replicas (each replica = additional cost) - configurable
+- Blocks Provisioned IOPS (very expensive) - configurable
 
 **ElastiCache Controls:**
 - Allowlist of permitted node types (cache.t3/t4g, cache.m5/m6g up to large)
@@ -62,6 +64,9 @@ Creates `InnovationSandboxCostAvoidanceScp` with comprehensive controls:
 
 **EKS Controls:**
 - Maximum nodegroup size: 5 nodes (configurable)
+
+**Auto Scaling Controls:**
+- Maximum Auto Scaling Group size: 10 instances (configurable)
 
 **Blocked Expensive Services:**
 - SageMaker endpoints and training jobs
@@ -73,6 +78,15 @@ Creates `InnovationSandboxCostAvoidanceScp` with comprehensive controls:
 - QuickSight user creation
 - Reserved capacity purchases
 - Savings plans
+- Neptune (graph database)
+- DocumentDB (MongoDB compatible)
+- MemoryDB (Redis compatible)
+- OpenSearch/Elasticsearch
+- AWS Batch compute environments
+- Glue jobs and dev endpoints
+- EFS (Elastic File System)
+- Timestream (time series DB)
+- QLDB (ledger database)
 
 **Why needed**: No guardrails existed. Users could spin up expensive resources and blow through budgets before 24-hour billing reconciliation.
 

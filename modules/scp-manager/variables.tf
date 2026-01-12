@@ -108,11 +108,7 @@ variable "allow_rds_multi_az" {
   default     = false
 }
 
-variable "max_rds_storage_gb" {
-  description = "Maximum RDS storage size in GB"
-  type        = number
-  default     = 100
-}
+# NOTE: max_rds_storage_gb removed - rds:StorageSize condition key has limited support
 
 variable "allowed_elasticache_node_types" {
   description = "ElastiCache node types allowed"
@@ -163,8 +159,50 @@ variable "block_expensive_services" {
     "rds:PurchaseReservedDBInstancesOffering",
     "elasticache:PurchaseReservedCacheNodesOffering",
     # Savings plans (commitment)
-    "savingsplans:CreateSavingsPlan"
+    "savingsplans:CreateSavingsPlan",
+    # Neptune - graph database ($0.348-8.35/hr)
+    "neptune:CreateDBCluster",
+    "neptune:CreateDBInstance",
+    # DocumentDB - MongoDB compatible ($0.26-8.42/hr)
+    "docdb:CreateDBCluster",
+    "docdb:CreateDBInstance",
+    # MemoryDB - Redis compatible (expensive)
+    "memorydb:CreateCluster",
+    # OpenSearch - can be very expensive
+    "es:CreateDomain",
+    "es:CreateElasticsearchDomain",
+    "opensearch:CreateDomain",
+    # AWS Batch - can spin up many instances
+    "batch:CreateComputeEnvironment",
+    # Glue - DPU hours add up quickly
+    "glue:CreateJob",
+    "glue:CreateDevEndpoint",
+    # EFS Provisioned Throughput - expensive
+    "elasticfilesystem:CreateFileSystem",
+    # Timestream - expensive time series DB
+    "timestream:CreateDatabase",
+    "timestream:CreateTable",
+    # QLDB - ledger database
+    "qldb:CreateLedger"
   ]
+}
+
+variable "max_autoscaling_group_size" {
+  description = "Maximum Auto Scaling group MaxSize parameter"
+  type        = number
+  default     = 10
+}
+
+variable "block_rds_read_replicas" {
+  description = "Block creation of RDS read replicas (each replica = additional cost)"
+  type        = bool
+  default     = true
+}
+
+variable "block_rds_provisioned_iops" {
+  description = "Block RDS provisioned IOPS (very expensive)"
+  type        = bool
+  default     = true
 }
 
 variable "max_eks_nodegroup_size" {
@@ -173,8 +211,4 @@ variable "max_eks_nodegroup_size" {
   default     = 5
 }
 
-variable "max_ecs_task_count" {
-  description = "Maximum ECS service desired count"
-  type        = number
-  default     = 10
-}
+# NOTE: max_ecs_task_count removed - no reliable SCP condition key for ECS desired count

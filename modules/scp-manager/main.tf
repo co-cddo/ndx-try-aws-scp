@@ -385,6 +385,39 @@ resource "aws_organizations_policy" "cost_avoidance" {
         },
       ],
 
+      # Block RDS Read Replicas (each replica = additional instance cost)
+      var.block_rds_read_replicas ? [
+        {
+          Sid      = "DenyRDSReadReplicas"
+          Effect   = "Deny"
+          Action   = ["rds:CreateDBInstanceReadReplica"]
+          Resource = ["*"]
+          Condition = {
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ] : [],
+
+      # Block RDS Provisioned IOPS (very expensive - up to $0.10/IOPS-month)
+      var.block_rds_provisioned_iops ? [
+        {
+          Sid      = "DenyRDSProvisionedIOPS"
+          Effect   = "Deny"
+          Action   = ["rds:CreateDBInstance", "rds:ModifyDBInstance"]
+          Resource = ["*"]
+          Condition = {
+            NumericGreaterThan = {
+              "rds:Piops" = "0"
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ] : [],
+
       # =========================================================================
       # ELASTICACHE CONTROLS
       # =========================================================================
@@ -435,6 +468,27 @@ resource "aws_organizations_policy" "cost_avoidance" {
           Condition = {
             NumericGreaterThan = {
               "eks:maxSize" = tostring(var.max_eks_nodegroup_size)
+            }
+            ArnNotLike = {
+              "aws:PrincipalARN" = local.exempt_role_arns
+            }
+          }
+        },
+      ],
+
+      # =========================================================================
+      # AUTO SCALING CONTROLS
+      # =========================================================================
+      [
+        # Limit Auto Scaling Group max size to prevent mass instance creation
+        {
+          Sid      = "LimitAutoScalingGroupSize"
+          Effect   = "Deny"
+          Action   = ["autoscaling:CreateAutoScalingGroup", "autoscaling:UpdateAutoScalingGroup"]
+          Resource = ["*"]
+          Condition = {
+            NumericGreaterThan = {
+              "autoscaling:MaxSize" = tostring(var.max_autoscaling_group_size)
             }
             ArnNotLike = {
               "aws:PrincipalARN" = local.exempt_role_arns
