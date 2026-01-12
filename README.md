@@ -11,7 +11,7 @@ Terraform module to manage and override Service Control Policies (SCPs) for the 
 | Issue | Symptom | Root Cause |
 |-------|---------|------------|
 | **Textract blocked** | FOI Redaction scenario fails on multi-page documents | Async operations (`StartDocumentAnalysis`, etc.) missing from allowlist - only sync operations were permitted |
-| **ECS can't access Secrets Manager** | LocalGov Drupal fails: "explicit deny in service control policy" | **Not a Secrets Manager issue** - the `LimitRegions` SCP blocks ALL actions outside us-east-1/us-west-2. UK scenarios deploy in eu-west-2 → everything blocked |
+| **ECS can't access Secrets Manager** | LocalGov Drupal fails: "explicit deny in service control policy" | Region restriction is **intentional** - only us-east-1/us-west-2 are allowed. UK scenarios must deploy to US regions |
 | **Bedrock cross-region** | Inference profiles fail | Already fixed in live SCP - `bedrock:InferenceProfileArn` exception exists |
 | **No cost controls** | Users could spin up expensive resources | No SCP existed to limit instance sizes or block expensive services |
 
@@ -35,17 +35,7 @@ textract:GetLendingAnalysisSummary
 
 **Why it was broken**: Sync operations (immediate response) were allowed, but async operations (required for documents >1 page) were not.
 
-#### 2. EU-West-2 Region Access
-**File**: `.github/workflows/terraform.yaml` (TF_VAR_managed_regions)
-
-Added `eu-west-2` to the allowed regions list:
-```yaml
-TF_VAR_managed_regions: '["us-east-1", "us-west-2", "eu-west-2"]'
-```
-
-**Why it was broken**: The `LimitRegions` SCP blocks ALL AWS actions outside allowed regions. UK-based scenarios (LocalGov Drupal) deploy to eu-west-2, so they couldn't do anything - not just Secrets Manager, but EC2, RDS, everything.
-
-#### 3. Cost Avoidance SCP (NEW)
+#### 2. Cost Avoidance SCP (NEW)
 **File**: `modules/scp-manager/main.tf` (cost_avoidance)
 
 Creates `InnovationSandboxCostAvoidanceScp` that:
@@ -83,7 +73,7 @@ We target `ou-2laj-4dyae1oa` (the AccountPool), not the parent.
 | **2. Review Terraform plan** | Chris | Run `terraform plan` to see exact changes |
 | **3. Disable LZA SCP revert** | Platform team | Set `scpRevertChangesConfig.enable: false` in LZA config, otherwise changes will be reverted automatically |
 | **4. Apply Terraform** | Manual trigger | Actions → Terraform SCP Management → Run workflow → Select "apply" |
-| **5. Test scenarios** | Greg | Run through Textract, LocalGov Drupal, Bedrock after apply |
+| **5. Test scenarios** | Greg | Run through Textract and Bedrock scenarios after apply |
 
 ### Pipeline Security
 
@@ -97,7 +87,7 @@ We target `ou-2laj-4dyae1oa` (the AccountPool), not the parent.
 ## Problem Statement
 
 The Innovation Sandbox on AWS (ISB) deploys SCPs via CDK/CloudFormation. We need to:
-1. **Relax** some restrictions (add Textract, Bedrock inference profiles, Secrets Manager for ECS)
+1. **Relax** some restrictions (add Textract async operations, Bedrock inference profiles)
 2. **Add** new restrictions (cost avoidance - limit instance sizes)
 
 SCPs use AND logic - you cannot make things MORE permissive by adding new SCPs. Therefore, we must **modify** the existing SCPs for relaxation, and can **add** new SCPs for restrictions.
@@ -129,7 +119,7 @@ SCPs use AND logic - you cannot make things MORE permissive by adding new SCPs. 
 
 | SCP | Action | Purpose |
 |-----|--------|---------|
-| InnovationSandboxAwsNukeSupportedServicesScp | MODIFY | Add Textract, fix Secrets Manager |
+| InnovationSandboxAwsNukeSupportedServicesScp | MODIFY | Add Textract async operations |
 | InnovationSandboxLimitRegionsScp | MODIFY | Add Bedrock inference profile exception |
 | InnovationSandboxCostAvoidanceScp | CREATE | Limit EC2 instance sizes, expensive services |
 
