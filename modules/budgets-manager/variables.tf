@@ -95,8 +95,14 @@ variable "enable_automated_actions" {
 }
 
 # -----------------------------------------------------------------------------
-# DAILY BUDGET LIMITS
+# DAILY BUDGET
 # -----------------------------------------------------------------------------
+
+variable "daily_budget_name" {
+  description = "Name of the daily cost budget (for importing existing budgets)"
+  type        = string
+  default     = "NDX Try usage daily"
+}
 
 variable "daily_budget_limit" {
   description = <<-EOT
@@ -119,6 +125,12 @@ variable "create_monthly_budget" {
   description = "Create a monthly aggregate budget"
   type        = bool
   default     = true
+}
+
+variable "monthly_budget_name" {
+  description = "Name of the monthly cost budget (for importing existing budgets)"
+  type        = string
+  default     = "NDX Try budget"
 }
 
 variable "monthly_budget_limit" {

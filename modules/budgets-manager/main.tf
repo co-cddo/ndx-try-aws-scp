@@ -162,7 +162,7 @@ resource "aws_iam_role_policy" "budget_actions" {
 # Tracks actual daily spend against the configured limit.
 
 resource "aws_budgets_budget" "daily_cost" {
-  name         = "${var.namespace}-sandbox-daily-cost"
+  name         = var.daily_budget_name
   budget_type  = "COST"
   limit_amount = tostring(var.daily_budget_limit)
   limit_unit   = "USD"
@@ -191,7 +191,17 @@ resource "aws_budgets_budget" "daily_cost" {
     }
   }
 
-  # 50% threshold - early warning
+  # 10% threshold - early warning (matches existing)
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 10
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  # 50% threshold - warning (matches existing)
   notification {
     comparison_operator        = "GREATER_THAN"
     threshold                  = 50
@@ -201,30 +211,10 @@ resource "aws_budgets_budget" "daily_cost" {
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
-  # 80% threshold - warning
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 80
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
-    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
-  }
-
-  # 100% threshold - budget reached
+  # 100% threshold - budget reached (matches existing)
   notification {
     comparison_operator        = "GREATER_THAN"
     threshold                  = 100
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
-    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
-  }
-
-  # 120% threshold - overspend alert
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 120
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
     subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
@@ -270,7 +260,7 @@ resource "aws_budgets_budget_action" "stop_ec2_at_100" {
 resource "aws_budgets_budget" "monthly_cost" {
   count = var.create_monthly_budget ? 1 : 0
 
-  name         = "${var.namespace}-sandbox-monthly-cost"
+  name         = var.monthly_budget_name
   budget_type  = "COST"
   limit_amount = tostring(var.monthly_budget_limit)
   limit_unit   = "USD"
@@ -297,29 +287,32 @@ resource "aws_budgets_budget" "monthly_cost" {
     }
   }
 
+  # 85% threshold - warning (matches existing)
   notification {
     comparison_operator        = "GREATER_THAN"
-    threshold                  = 50
+    threshold                  = 85
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
     subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }
 
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 80
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
-    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
-  }
-
+  # 100% threshold - budget reached (matches existing)
   notification {
     comparison_operator        = "GREATER_THAN"
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  # 100% forecasted threshold (matches existing)
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
     subscriber_email_addresses = var.alert_email != null ? [var.alert_email] : []
     subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
   }

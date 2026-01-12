@@ -50,9 +50,12 @@ env:
   # ==========================================================================
   # LAYER 3: AWS BUDGETS (FINAL COST DEFENSE)
   # ==========================================================================
+  # Budget names match existing ClickOps budgets (imported into Terraform)
   TF_VAR_enable_budgets: "true"
-  TF_VAR_daily_budget_limit: "200"        # $200/day total
-  TF_VAR_monthly_budget_limit: "5000"     # $5,000/month total
+  TF_VAR_daily_budget_name: "NDX Try usage daily"
+  TF_VAR_daily_budget_limit: "50"         # $50/day (matches existing)
+  TF_VAR_monthly_budget_name: "NDX Try budget"
+  TF_VAR_monthly_budget_limit: "1000"     # $1,000/month (matches existing)
   TF_VAR_ec2_daily_budget: "100"          # $100/day EC2
   TF_VAR_rds_daily_budget: "30"           # $30/day RDS
   TF_VAR_lambda_daily_budget: "50"        # $50/day Lambda

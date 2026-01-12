@@ -154,11 +154,13 @@ module "budgets" {
   create_sns_topic = var.enable_budgets
   alert_email      = var.budget_alert_email
 
-  # Daily budget - covers 24-hour sandbox lease
+  # Daily budget - matches existing ClickOps budget
+  daily_budget_name  = var.daily_budget_name
   daily_budget_limit = var.daily_budget_limit
 
-  # Monthly aggregate budget
+  # Monthly aggregate budget - matches existing ClickOps budget
   create_monthly_budget = var.enable_budgets
+  monthly_budget_name   = var.monthly_budget_name
   monthly_budget_limit  = var.monthly_budget_limit
 
   # Service-specific budgets catch runaway spending

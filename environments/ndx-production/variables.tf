@@ -105,16 +105,28 @@ variable "budget_alert_email" {
   default     = null
 }
 
+variable "daily_budget_name" {
+  description = "Name of the daily budget (matches existing ClickOps budget)"
+  type        = string
+  default     = "NDX Try usage daily"
+}
+
 variable "daily_budget_limit" {
-  description = "Daily cost budget limit in USD (24hr sandbox lease)"
+  description = "Daily cost budget limit in USD (matches existing)"
   type        = number
-  default     = 200
+  default     = 50
+}
+
+variable "monthly_budget_name" {
+  description = "Name of the monthly budget (matches existing ClickOps budget)"
+  type        = string
+  default     = "NDX Try budget"
 }
 
 variable "monthly_budget_limit" {
-  description = "Monthly aggregate budget limit in USD"
+  description = "Monthly aggregate budget limit in USD (matches existing)"
   type        = number
-  default     = 5000
+  default     = 1000
 }
 
 variable "ec2_daily_budget" {
