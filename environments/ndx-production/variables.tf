@@ -176,7 +176,19 @@ variable "enable_budget_automated_actions" {
 }
 
 variable "sandbox_account_ids" {
-  description = "List of sandbox account IDs to filter budgets (null = all linked accounts)"
+  description = <<-EOT
+    List of sandbox account IDs for per-account budget creation.
+
+    IMPORTANT: When provided, creates SEPARATE budgets for EACH account.
+    This ensures one sandbox can't consume another's budget allocation.
+
+    When null: Creates single consolidated budget (NOT RECOMMENDED for production)
+    When set: Creates per-account budgets with individual limits
+
+    Get account IDs from the Active OU:
+      aws organizations list-accounts-for-parent --parent-id ou-xxxx-xxxxxxxx \
+        --query 'Accounts[?Status==`ACTIVE`].Id' --output json
+  EOT
   type        = list(string)
   default     = null
 }

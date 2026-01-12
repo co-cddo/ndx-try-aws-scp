@@ -156,19 +156,20 @@ resource "aws_iam_role_policy" "budget_actions" {
 }
 
 # -----------------------------------------------------------------------------
-# DAILY COST BUDGET (PRIMARY)
+# DAILY COST BUDGET - PER ACCOUNT
 # -----------------------------------------------------------------------------
-# This is the main budget for 24-hour sandbox leases.
-# Tracks actual daily spend against the configured limit.
+# Creates a separate daily budget for EACH sandbox account.
+# This ensures one account can't consume another's budget allocation.
 
-resource "aws_budgets_budget" "daily_cost" {
-  name         = var.daily_budget_name
+resource "aws_budgets_budget" "daily_cost_per_account" {
+  for_each = var.sandbox_account_ids != null ? toset(var.sandbox_account_ids) : toset([])
+
+  name         = "${var.namespace}-sandbox-daily-${each.value}"
   budget_type  = "COST"
   limit_amount = tostring(var.daily_budget_limit)
   limit_unit   = "USD"
   time_unit    = "DAILY"
 
-  # Track actual spend (not forecasted)
   cost_types {
     include_credit             = false
     include_discount           = true
@@ -182,13 +183,72 @@ resource "aws_budgets_budget" "daily_cost" {
     use_blended                = false
   }
 
-  # Filter to sandbox accounts via linked account or tag
-  dynamic "cost_filter" {
-    for_each = var.sandbox_account_ids != null ? [1] : []
-    content {
-      name   = "LinkedAccount"
-      values = var.sandbox_account_ids
-    }
+  # Filter to THIS specific account only
+  cost_filter {
+    name   = "LinkedAccount"
+    values = [each.value]
+  }
+
+  # 10% threshold - early warning
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 10
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  # 50% threshold - warning
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 50
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  # 100% threshold - budget reached
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  tags = merge(var.tags, {
+    SandboxAccountId = each.value
+  })
+}
+
+# -----------------------------------------------------------------------------
+# DAILY COST BUDGET - CONSOLIDATED (FALLBACK)
+# -----------------------------------------------------------------------------
+# Only created when no sandbox_account_ids provided (org-wide monitoring)
+
+resource "aws_budgets_budget" "daily_cost" {
+  count = var.sandbox_account_ids == null ? 1 : 0
+
+  name         = var.daily_budget_name
+  budget_type  = "COST"
+  limit_amount = tostring(var.daily_budget_limit)
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_types {
+    include_credit             = false
+    include_discount           = true
+    include_other_subscription = true
+    include_recurring          = true
+    include_refund             = false
+    include_subscription       = true
+    include_support            = true
+    include_tax                = true
+    include_upfront            = true
+    use_blended                = false
   }
 
   # 10% threshold - early warning (matches existing)
@@ -224,11 +284,11 @@ resource "aws_budgets_budget" "daily_cost" {
   tags = var.tags
 }
 
-# Automated action: Stop EC2 instances at 100% budget
+# Automated action: Stop EC2 instances at 100% budget (consolidated budget only)
 resource "aws_budgets_budget_action" "stop_ec2_at_100" {
-  count = var.enable_automated_actions ? 1 : 0
+  count = var.enable_automated_actions && var.sandbox_account_ids == null ? 1 : 0
 
-  budget_name       = aws_budgets_budget.daily_cost.name
+  budget_name       = aws_budgets_budget.daily_cost[0].name
   action_type       = "RUN_SSM_DOCUMENTS"
   approval_model    = "AUTOMATIC"
   notification_type = "ACTUAL"
@@ -253,14 +313,14 @@ resource "aws_budgets_budget_action" "stop_ec2_at_100" {
 }
 
 # -----------------------------------------------------------------------------
-# MONTHLY COST BUDGET (AGGREGATE)
+# MONTHLY COST BUDGET - PER ACCOUNT
 # -----------------------------------------------------------------------------
-# Provides monthly view across all sandbox accounts.
+# Creates a separate monthly budget for EACH sandbox account.
 
-resource "aws_budgets_budget" "monthly_cost" {
-  count = var.create_monthly_budget ? 1 : 0
+resource "aws_budgets_budget" "monthly_cost_per_account" {
+  for_each = var.create_monthly_budget && var.sandbox_account_ids != null ? toset(var.sandbox_account_ids) : toset([])
 
-  name         = var.monthly_budget_name
+  name         = "${var.namespace}-sandbox-monthly-${each.value}"
   budget_type  = "COST"
   limit_amount = tostring(var.monthly_budget_limit)
   limit_unit   = "USD"
@@ -279,12 +339,71 @@ resource "aws_budgets_budget" "monthly_cost" {
     use_blended                = false
   }
 
-  dynamic "cost_filter" {
-    for_each = var.sandbox_account_ids != null ? [1] : []
-    content {
-      name   = "LinkedAccount"
-      values = var.sandbox_account_ids
-    }
+  cost_filter {
+    name   = "LinkedAccount"
+    values = [each.value]
+  }
+
+  # 85% threshold - warning
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 85
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  # 100% threshold - budget reached
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  # 100% forecasted threshold
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.create_sns_topic ? [aws_sns_topic.budget_alerts[0].arn] : var.sns_topic_arns
+  }
+
+  tags = merge(var.tags, {
+    SandboxAccountId = each.value
+  })
+}
+
+# -----------------------------------------------------------------------------
+# MONTHLY COST BUDGET - CONSOLIDATED (FALLBACK)
+# -----------------------------------------------------------------------------
+# Only created when no sandbox_account_ids provided (org-wide monitoring)
+
+resource "aws_budgets_budget" "monthly_cost" {
+  count = var.create_monthly_budget && var.sandbox_account_ids == null ? 1 : 0
+
+  name         = var.monthly_budget_name
+  budget_type  = "COST"
+  limit_amount = tostring(var.monthly_budget_limit)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  cost_types {
+    include_credit             = false
+    include_discount           = true
+    include_other_subscription = true
+    include_recurring          = true
+    include_refund             = false
+    include_subscription       = true
+    include_support            = true
+    include_tax                = true
+    include_upfront            = true
+    use_blended                = false
   }
 
   # 85% threshold - warning (matches existing)
