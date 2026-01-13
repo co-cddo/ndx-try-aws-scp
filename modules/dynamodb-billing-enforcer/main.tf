@@ -45,6 +45,7 @@ events = boto3.client('events')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
 EXEMPT_TABLE_PREFIXES = os.environ.get('EXEMPT_TABLE_PREFIXES', '').split(',')
 EVENT_BUS_NAME = os.environ.get('EVENT_BUS_NAME', 'default')
+EVENTBRIDGE_SOURCE = os.environ.get('EVENTBRIDGE_SOURCE', 'sandbox.dynamodb-billing-enforcer')
 
 def lambda_handler(event, context):
     """
@@ -95,7 +96,7 @@ def lambda_handler(event, context):
                 events.put_events(
                     Entries=[
                         {
-                            'Source': 'ndx.dynamodb-billing-enforcer',
+                            'Source': EVENTBRIDGE_SOURCE,
                             'DetailType': 'DynamoDB On-Demand Table Deleted',
                             'Detail': json.dumps({
                                 'tableName': table_name,
@@ -212,6 +213,7 @@ resource "aws_lambda_function" "enforcer" {
       SNS_TOPIC_ARN         = var.sns_topic_arn != null ? var.sns_topic_arn : ""
       EXEMPT_TABLE_PREFIXES = join(",", var.exempt_table_prefixes)
       EVENT_BUS_NAME        = "default"
+      EVENTBRIDGE_SOURCE    = "${var.namespace}.dynamodb-billing-enforcer"
     }
   }
 

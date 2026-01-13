@@ -47,16 +47,8 @@ output "budget_limits_summary" {
     monthly_limit = var.create_monthly_budget ? "$${var.monthly_budget_limit}/month per account" : "Not configured"
 
     service_budgets = var.create_service_budgets ? {
-      ec2           = "$${var.ec2_daily_limit}/day"
-      rds           = "$${var.rds_daily_limit}/day"
-      lambda        = "$${var.lambda_daily_limit}/day"
-      dynamodb      = "$${var.dynamodb_daily_limit}/day"
-      bedrock       = "$${var.bedrock_daily_limit}/day"
-      data_transfer = "$${var.data_transfer_daily_limit}/day"
-      cloudwatch    = "$${var.cloudwatch_daily_limit}/day"
-      stepfunctions = "$${var.stepfunctions_daily_limit}/day"
-      s3            = "$${var.s3_daily_limit}/day"
-      apigateway    = "$${var.apigateway_daily_limit}/day"
+      for key, config in local.service_budgets :
+      key => "$${config.limit}/day"
     } : null
 
     automated_actions = var.enable_automated_actions ? "Enabled (EC2 stop at 100%)" : "Disabled"
@@ -66,16 +58,8 @@ output "budget_limits_summary" {
 output "service_budget_names" {
   description = "Names of service-specific budgets"
   value = var.create_service_budgets ? {
-    ec2           = aws_budgets_budget.ec2_daily[0].name
-    rds           = aws_budgets_budget.rds_daily[0].name
-    lambda        = aws_budgets_budget.lambda_daily[0].name
-    dynamodb      = aws_budgets_budget.dynamodb_daily[0].name
-    bedrock       = aws_budgets_budget.bedrock_daily[0].name
-    data_transfer = aws_budgets_budget.data_transfer_daily[0].name
-    cloudwatch    = aws_budgets_budget.cloudwatch_daily[0].name
-    stepfunctions = aws_budgets_budget.stepfunctions_daily[0].name
-    s3            = aws_budgets_budget.s3_daily[0].name
-    apigateway    = aws_budgets_budget.apigateway_daily[0].name
+    for key, budget in aws_budgets_budget.service :
+    key => budget.name
   } : null
 }
 
@@ -88,6 +72,9 @@ output "import_commands" {
 
     # For per-account budgets:
     # terraform import 'module.budgets.aws_budgets_budget.daily_cost_per_account["<sandbox-account-id>"]' <management-account-id>:<budget-name>
+
+    # For service budgets:
+    # terraform import 'module.budgets.aws_budgets_budget.service["ec2"]' <account-id>:<budget-name>
 
     # To find existing budget names:
     # aws budgets describe-budgets --account-id <account-id> --query 'Budgets[].BudgetName'

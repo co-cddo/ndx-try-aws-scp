@@ -74,13 +74,9 @@ variable "sns_topic_arns" {
 }
 
 variable "alert_emails" {
-  description = "Email addresses for direct budget alert subscriptions"
+  description = "Email addresses for direct budget alert subscriptions. Required - no default to avoid hardcoding."
   type        = list(string)
-  default = [
-    "chris.Nesbitt-Smith@digital.cabinet-office.gov.uk",
-    "ndx-aaaaqa6ovbj5owumuw4jkzc44m@gds.slack.com",
-    "ndx@dsit.gov.uk"
-  ]
+  default     = [] # Must be provided by caller
 }
 
 # -----------------------------------------------------------------------------
@@ -103,9 +99,9 @@ variable "enable_automated_actions" {
 # -----------------------------------------------------------------------------
 
 variable "daily_budget_name" {
-  description = "Name of the daily cost budget (for importing existing budgets)"
+  description = "Name of the daily cost budget (for importing existing budgets). Uses namespace if not specified."
   type        = string
-  default     = "NDX Try usage daily"
+  default     = null # Will be computed from namespace if not set
 }
 
 variable "daily_budget_limit" {
@@ -132,9 +128,9 @@ variable "create_monthly_budget" {
 }
 
 variable "monthly_budget_name" {
-  description = "Name of the monthly cost budget (for importing existing budgets)"
+  description = "Name of the monthly cost budget (for importing existing budgets). Uses namespace if not specified."
   type        = string
-  default     = "NDX Try budget"
+  default     = null # Will be computed from namespace if not set
 }
 
 variable "monthly_budget_limit" {

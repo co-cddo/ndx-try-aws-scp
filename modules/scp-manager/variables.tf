@@ -34,25 +34,9 @@ variable "cost_avoidance_ou_id" {
 }
 
 variable "allowed_ec2_instance_types" {
-  description = "List of allowed EC2 instance type patterns (e.g., 't3.*', 'm5.large')"
+  description = "List of allowed EC2 instance type patterns (e.g., 't3.*', 'm5.large'). Pass null to use default."
   type        = list(string)
-  default = [
-    "t2.micro",
-    "t2.small",
-    "t2.medium",
-    "t3.micro",
-    "t3.small",
-    "t3.medium",
-    "t3.large",
-    "t3a.micro",
-    "t3a.small",
-    "t3a.medium",
-    "t3a.large",
-    "m5.large",
-    "m5.xlarge",
-    "m6i.large",
-    "m6i.xlarge"
-  ]
+  default     = null # See locals.default_ec2_instance_types
 }
 
 variable "tags" {

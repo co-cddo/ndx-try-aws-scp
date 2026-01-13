@@ -16,6 +16,18 @@ locals {
     "arn:aws:iam::*:role/stacksets-exec-*",
     "arn:aws:iam::*:role/AWSControlTowerExecution"
   ]
+
+  # Default EC2 instance types - DRY: single source of truth
+  default_ec2_instance_types = [
+    "t2.micro", "t2.small", "t2.medium",
+    "t3.micro", "t3.small", "t3.medium", "t3.large",
+    "t3a.micro", "t3a.small", "t3a.medium", "t3a.large",
+    "m5.large", "m5.xlarge",
+    "m6i.large", "m6i.xlarge"
+  ]
+
+  # Use provided list or fall back to default
+  allowed_ec2_instance_types = coalesce(var.allowed_ec2_instance_types, local.default_ec2_instance_types)
 }
 
 # =============================================================================
@@ -286,7 +298,7 @@ resource "aws_organizations_policy" "cost_avoidance" {
           Resource = ["arn:aws:ec2:*:*:instance/*"]
           Condition = {
             "ForAnyValue:StringNotLike" = {
-              "ec2:InstanceType" = var.allowed_ec2_instance_types
+              "ec2:InstanceType" = local.allowed_ec2_instance_types
             }
             ArnNotLike = {
               "aws:PrincipalARN" = local.exempt_role_arns

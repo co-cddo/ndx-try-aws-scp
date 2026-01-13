@@ -34,25 +34,9 @@ variable "cost_avoidance_ou_id" {
 }
 
 variable "allowed_ec2_instance_types" {
-  description = "EC2 instance types allowed in sandboxes"
+  description = "EC2 instance types allowed in sandboxes. Uses module default if not specified."
   type        = list(string)
-  default = [
-    "t2.micro",
-    "t2.small",
-    "t2.medium",
-    "t3.micro",
-    "t3.small",
-    "t3.medium",
-    "t3.large",
-    "t3a.micro",
-    "t3a.small",
-    "t3a.medium",
-    "t3a.large",
-    "m5.large",
-    "m5.xlarge",
-    "m6i.large",
-    "m6i.xlarge"
-  ]
+  default     = null # Uses scp-manager module default
 }
 
 # =============================================================================
