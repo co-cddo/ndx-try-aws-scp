@@ -116,8 +116,8 @@ module "budgets" {
   bedrock_daily_limit       = var.bedrock_daily_budget
   data_transfer_daily_limit = var.data_transfer_daily_budget
 
-  # Automated actions - DISABLED by default for safety
-  enable_automated_actions = var.enable_budget_automated_actions
+  # Automated actions - always enabled (stops EC2 at 100% budget)
+  enable_automated_actions = true
 
   tags = {
     Component = "Budget-Guardrails"
