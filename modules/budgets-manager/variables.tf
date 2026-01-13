@@ -36,7 +36,7 @@ variable "namespace" {
 variable "primary_region" {
   description = "Primary AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "us-west-2"
 }
 
 variable "sandbox_account_ids" {
@@ -95,7 +95,7 @@ variable "enable_automated_actions" {
     thresholds are exceeded. Ensure this behavior is acceptable.
   EOT
   type        = bool
-  default     = false
+  default     = true
 }
 
 # -----------------------------------------------------------------------------

@@ -73,7 +73,7 @@ module "service_quotas" {
   enable_ec2_quotas         = var.enable_service_quotas
   ec2_on_demand_vcpu_limit  = var.ec2_vcpu_quota
   ec2_spot_vcpu_limit       = var.ec2_vcpu_quota
-  ec2_gpu_vcpu_limit        = 0 # Blocked - also in SCP
+  ec2_gpu_vcpu_limit        = 4 # Allow limited GPU usage
   ec2_p_instance_vcpu_limit = 0 # Blocked - also in SCP
   ec2_inf_vcpu_limit        = 0 # Blocked - also in SCP
   ec2_dl_vcpu_limit         = 0 # Blocked - also in SCP
@@ -86,7 +86,7 @@ module "service_quotas" {
   ebs_gp2_storage_tib = var.ebs_storage_quota_tib
   ebs_io1_iops_limit  = 0 # Blocked - also in SCP
   ebs_io2_iops_limit  = 0 # Blocked - also in SCP
-  ebs_snapshot_limit  = 100
+  ebs_snapshot_limit  = 20 # Reduced - 100 excessive for 24hr lease
 
   # Lambda quotas - 100 concurrent executions
   enable_lambda_quotas         = var.enable_service_quotas
@@ -248,22 +248,14 @@ module "cost_anomaly_detection" {
 # DYNAMODB BILLING MODE ENFORCER (GAP FIX)
 # =============================================================================
 # Critical gap closure: DynamoDB On-Demand mode bypasses WCU/RCU quotas.
-# This module uses EventBridge + Lambda to detect and convert On-Demand
-# tables to Provisioned mode automatically.
+# This module uses EventBridge + Lambda to detect On-Demand tables and DELETE them.
+# Broadcasts event to EventBridge for downstream processing.
 
 module "dynamodb_billing_enforcer" {
   source = "../../modules/dynamodb-billing-enforcer"
   count  = var.enable_dynamodb_billing_enforcer ? 1 : 0
 
   namespace = var.namespace
-
-  # Convert On-Demand tables to Provisioned (RECOMMENDED)
-  # Alternative: "delete" for aggressive enforcement, "alert" for passive
-  enforcement_mode = "convert"
-
-  # Capacity limits when converting - should match service quotas
-  max_rcu = 100 # Will result in ~$0.31/day per table
-  max_wcu = 100 # Will result in ~$1.56/day per table
 
   # Send alerts to same topic as budgets
   sns_topic_arn = var.enable_budgets ? module.budgets[0].sns_topic_arn : null

@@ -11,12 +11,7 @@
 #
 # SOLUTION:
 # EventBridge rule detects CreateTable/UpdateTable events and triggers
-# Lambda function that either:
-#   1. Converts table to PROVISIONED mode with enforced capacity limits
-#   2. Deletes the table (aggressive mode)
-#   3. Alerts and logs (passive mode)
-#
-# This provides the missing layer of defense for DynamoDB On-Demand costs.
+# Lambda function that DELETES On-Demand tables and broadcasts the event.
 # =============================================================================
 
 terraform {
@@ -45,16 +40,15 @@ import os
 
 dynamodb = boto3.client('dynamodb')
 sns = boto3.client('sns')
+events = boto3.client('events')
 
-ENFORCEMENT_MODE = os.environ.get('ENFORCEMENT_MODE', 'convert')  # convert, delete, alert
-MAX_RCU = int(os.environ.get('MAX_RCU', '100'))
-MAX_WCU = int(os.environ.get('MAX_WCU', '100'))
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
 EXEMPT_TABLE_PREFIXES = os.environ.get('EXEMPT_TABLE_PREFIXES', '').split(',')
+EVENT_BUS_NAME = os.environ.get('EVENT_BUS_NAME', 'default')
 
 def lambda_handler(event, context):
     """
-    Enforces DynamoDB billing mode policy.
+    Enforces DynamoDB billing mode policy by DELETING On-Demand tables.
     Triggered by EventBridge when CreateTable or UpdateTable is called.
     """
     print(f"Received event: {json.dumps(event)}")
@@ -88,39 +82,34 @@ def lambda_handler(event, context):
 
         print(f"Table {table_name} has billing mode: {billing_mode}")
 
-        # If table is On-Demand, take action
+        # If table is On-Demand, DELETE it
         if billing_mode == 'PAY_PER_REQUEST':
             message = f"DynamoDB table '{table_name}' detected with On-Demand billing mode."
 
-            if ENFORCEMENT_MODE == 'convert':
-                # Convert to provisioned with enforced limits
-                try:
-                    dynamodb.update_table(
-                        TableName=table_name,
-                        BillingMode='PROVISIONED',
-                        ProvisionedThroughput={
-                            'ReadCapacityUnits': MAX_RCU,
-                            'WriteCapacityUnits': MAX_WCU
+            try:
+                dynamodb.delete_table(TableName=table_name)
+                message += " TABLE DELETED."
+                print(message)
+
+                # Broadcast to EventBridge
+                events.put_events(
+                    Entries=[
+                        {
+                            'Source': 'ndx.dynamodb-billing-enforcer',
+                            'DetailType': 'DynamoDB On-Demand Table Deleted',
+                            'Detail': json.dumps({
+                                'tableName': table_name,
+                                'action': 'DELETED',
+                                'reason': 'On-Demand billing mode not allowed'
+                            }),
+                            'EventBusName': EVENT_BUS_NAME
                         }
-                    )
-                    message += f" CONVERTED to PROVISIONED mode with {MAX_RCU} RCU, {MAX_WCU} WCU."
-                    print(message)
-                except Exception as e:
-                    message += f" FAILED to convert: {str(e)}"
-                    print(message)
+                    ]
+                )
+                print(f"EventBridge event broadcast for table {table_name}")
 
-            elif ENFORCEMENT_MODE == 'delete':
-                # Delete the table (aggressive)
-                try:
-                    dynamodb.delete_table(TableName=table_name)
-                    message += " TABLE DELETED (aggressive enforcement mode)."
-                    print(message)
-                except Exception as e:
-                    message += f" FAILED to delete: {str(e)}"
-                    print(message)
-
-            else:  # alert mode
-                message += " ALERT ONLY - no action taken."
+            except Exception as e:
+                message += f" FAILED to delete: {str(e)}"
                 print(message)
 
             # Send SNS notification
@@ -128,7 +117,7 @@ def lambda_handler(event, context):
                 try:
                     sns.publish(
                         TopicArn=SNS_TOPIC_ARN,
-                        Subject=f"[COST ALERT] DynamoDB On-Demand Table Detected: {table_name}",
+                        Subject=f"[COST ALERT] DynamoDB On-Demand Table Deleted: {table_name}",
                         Message=message
                     )
                 except Exception as e:
@@ -179,7 +168,6 @@ resource "aws_iam_role_policy" "enforcer_lambda" {
         Effect = "Allow"
         Action = [
           "dynamodb:DescribeTable",
-          "dynamodb:UpdateTable",
           "dynamodb:DeleteTable"
         ]
         Resource = "arn:aws:dynamodb:*:*:table/*"
@@ -189,6 +177,12 @@ resource "aws_iam_role_policy" "enforcer_lambda" {
         Effect   = "Allow"
         Action   = "sns:Publish"
         Resource = var.sns_topic_arn != null ? var.sns_topic_arn : "*"
+      },
+      {
+        Sid      = "EventBridgePutEvents"
+        Effect   = "Allow"
+        Action   = "events:PutEvents"
+        Resource = "*"
       },
       {
         Sid    = "CloudWatchLogs"
@@ -215,11 +209,9 @@ resource "aws_lambda_function" "enforcer" {
 
   environment {
     variables = {
-      ENFORCEMENT_MODE      = var.enforcement_mode
-      MAX_RCU               = tostring(var.max_rcu)
-      MAX_WCU               = tostring(var.max_wcu)
       SNS_TOPIC_ARN         = var.sns_topic_arn != null ? var.sns_topic_arn : ""
       EXEMPT_TABLE_PREFIXES = join(",", var.exempt_table_prefixes)
+      EVENT_BUS_NAME        = "default"
     }
   }
 
