@@ -122,20 +122,27 @@ jobs:
         with:
           script: |
             const planOutput = process.env.PLAN_OUTPUT || 'No plan output available';
-            const output = `#### Terraform Format 🖌 \`${process.env.FMT_OUTCOME}\`
-            #### Terraform Init ⚙️ \`${process.env.INIT_OUTCOME}\`
-            #### Terraform Validate 🤖 \`${process.env.VALIDATE_OUTCOME}\`
-            #### Terraform Plan 📖 \`${process.env.PLAN_OUTCOME}\`
+            const fmtOutcome = process.env.FMT_OUTCOME;
+            const initOutcome = process.env.INIT_OUTCOME;
+            const validateOutcome = process.env.VALIDATE_OUTCOME;
+            const planOutcome = process.env.PLAN_OUTCOME;
 
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform
-            ${planOutput}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            const output = [
+              '#### Terraform Format 🖌 `' + fmtOutcome + '`',
+              '#### Terraform Init ⚙️ `' + initOutcome + '`',
+              '#### Terraform Validate 🤖 `' + validateOutcome + '`',
+              '#### Terraform Plan 📖 `' + planOutcome + '`',
+              '',
+              '<details><summary>Show Plan</summary>',
+              '',
+              '```terraform',
+              planOutput,
+              '```',
+              '',
+              '</details>',
+              '',
+              '*Pushed by: @${{ github.actor }}, Action: `${{ github.event_name }}`*'
+            ].join('\n');
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
