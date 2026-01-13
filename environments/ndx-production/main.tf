@@ -47,6 +47,9 @@ module "scp_manager" {
   cost_avoidance_ou_id       = var.cost_avoidance_ou_id
   allowed_ec2_instance_types = var.allowed_ec2_instance_types
 
+  # IAM Workload Identity - allows users to create roles for EC2/Lambda/etc.
+  enable_iam_workload_identity = var.enable_iam_workload_identity
+
   tags = {
     Component = "SCP-Overrides"
   }
@@ -131,6 +134,7 @@ output "scp_policy_ids" {
     nuke_supported_services = module.scp_manager.nuke_supported_services_policy_id
     limit_regions           = module.scp_manager.limit_regions_policy_id
     cost_avoidance          = module.scp_manager.cost_avoidance_policy_id
+    iam_workload_identity   = module.scp_manager.iam_workload_identity_policy_id
   }
 }
 

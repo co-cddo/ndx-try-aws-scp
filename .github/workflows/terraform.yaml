@@ -54,6 +54,17 @@ env:
   # Service-specific budgets (consolidated across all accounts)
   TF_VAR_enable_service_budgets: "true"
 
+  # ==========================================================================
+  # IAM WORKLOAD IDENTITY
+  # ==========================================================================
+  # Allows sandbox users to create IAM roles for EC2/Lambda workloads
+  # while preventing privilege escalation.
+  #
+  # IMPORTANT: Set to "true" ONLY AFTER the Innovation Sandbox
+  # "SecurityAndIsolationRestrictions" SCP has been modified to REMOVE
+  # iam:CreateRole and iam:CreateUser from its deny list.
+  TF_VAR_enable_iam_workload_identity: "false"
+
 jobs:
   # ============================================
   # Terraform Plan - runs on PRs and pushes

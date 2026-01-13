@@ -32,3 +32,13 @@ output "exempt_role_arns" {
   description = "Role ARN patterns that are exempt from SCPs"
   value       = local.exempt_role_arns
 }
+
+output "iam_workload_identity_policy_id" {
+  description = "ID of the IAM Workload Identity SCP (if enabled)"
+  value       = var.enable_iam_workload_identity ? aws_organizations_policy.iam_workload_identity[0].id : null
+}
+
+output "iam_workload_identity_policy_arn" {
+  description = "ARN of the IAM Workload Identity SCP (if enabled)"
+  value       = var.enable_iam_workload_identity ? aws_organizations_policy.iam_workload_identity[0].arn : null
+}

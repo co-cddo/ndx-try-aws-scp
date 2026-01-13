@@ -148,3 +148,31 @@ variable "enable_budget_automated_actions" {
   type        = bool
   default     = false
 }
+
+# =============================================================================
+# IAM WORKLOAD IDENTITY
+# =============================================================================
+
+variable "enable_iam_workload_identity" {
+  description = <<-EOT
+    Enable IAM Workload Identity SCP that allows users to create IAM roles
+    for workloads (EC2 instance profiles, Lambda execution roles, etc.)
+    while preventing privilege escalation.
+
+    When enabled, users CAN:
+    - Create IAM roles and users
+    - Attach policies to their created roles
+    - Create instance profiles for EC2
+
+    Users CANNOT:
+    - Create roles matching exempt patterns (InnovationSandbox*, Admin*, etc.)
+    - Modify or delete privileged admin roles
+    - Pass or assume privileged roles
+
+    IMPORTANT: The Innovation Sandbox "SecurityAndIsolationRestrictions" SCP
+    must also be modified to REMOVE iam:CreateRole and iam:CreateUser from
+    its deny list for users to actually create roles.
+  EOT
+  type        = bool
+  default     = false
+}
