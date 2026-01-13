@@ -53,8 +53,6 @@ env:
   TF_VAR_monthly_budget_limit: "1000"
   # Service-specific budgets (consolidated across all accounts)
   TF_VAR_enable_service_budgets: "true"
-  # Alert emails for budget notifications
-  TF_VAR_budget_alert_emails: '["chris.Nesbitt-Smith@digital.cabinet-office.gov.uk", "ndx@dsit.gov.uk"]'
 
   # ==========================================================================
   # IAM WORKLOAD IDENTITY
@@ -76,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     # Block forks from running this workflow
     if: github.event.pull_request.head.repo.fork == false
+    env:
+      TF_VAR_budget_alert_emails: ${{ secrets.SLACK_BUDGET_ALERT_EMAIL }}
 
     steps:
       - name: Harden Runner
@@ -186,6 +186,8 @@ jobs:
     # Must be triggered via Actions -> Run workflow -> select 'apply'
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     environment: production  # Requires approval if environment is configured
+    env:
+      TF_VAR_budget_alert_emails: ${{ secrets.SLACK_BUDGET_ALERT_EMAIL }}
 
     steps:
       - name: Harden Runner
