@@ -42,3 +42,13 @@ output "iam_workload_identity_policy_arn" {
   description = "ARN of the IAM Workload Identity SCP (if enabled)"
   value       = var.enable_iam_workload_identity ? aws_organizations_policy.iam_workload_identity[0].arn : null
 }
+
+output "restrictions_policy_id" {
+  description = "ID of the Restrictions SCP (imported from Innovation Sandbox)"
+  value       = aws_organizations_policy.restrictions.id
+}
+
+output "restrictions_policy_arn" {
+  description = "ARN of the Restrictions SCP (imported from Innovation Sandbox)"
+  value       = aws_organizations_policy.restrictions.arn
+}

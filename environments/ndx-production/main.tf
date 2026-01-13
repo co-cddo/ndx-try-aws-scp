@@ -135,6 +135,7 @@ output "scp_policy_ids" {
     limit_regions           = module.scp_manager.limit_regions_policy_id
     cost_avoidance          = module.scp_manager.cost_avoidance_policy_id
     iam_workload_identity   = module.scp_manager.iam_workload_identity_policy_id
+    restrictions            = module.scp_manager.restrictions_policy_id
   }
 }
 

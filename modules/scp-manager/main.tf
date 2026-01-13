@@ -510,3 +510,156 @@ resource "aws_organizations_policy_attachment" "iam_workload_identity" {
   policy_id = aws_organizations_policy.iam_workload_identity[0].id
   target_id = var.sandbox_ou_id
 }
+
+# =============================================================================
+# IMPORTED SCP: Innovation Sandbox Restrictions
+# =============================================================================
+# This SCP was originally created by Innovation Sandbox CDK/CloudFormation.
+# We import it to Terraform to manage modifications like removing iam:CreateUser
+# from the deny list to allow workload identity.
+#
+# IMPORT COMMAND:
+# terraform import 'module.scp_manager.aws_organizations_policy.restrictions' p-6tw8eixp
+
+resource "aws_organizations_policy" "restrictions" {
+  name        = "InnovationSandboxRestrictionsScp"
+  description = "SCP for security and isolation restrictions. MANAGED BY TERRAFORM."
+  type        = "SERVICE_CONTROL_POLICY"
+
+  content = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "SecurityAndIsolationRestrictions"
+        Effect = "Deny"
+        Action = [
+          "aws-portal:ModifyAccount",
+          "aws-portal:ViewAccount",
+          "cloudtrail:CreateServiceLinkedChannel",
+          "cloudtrail:UpdateServiceLinkedChannel",
+          # iam:CreateUser - REMOVED to allow workload identity
+          # Users can now create IAM users, but InnovationSandboxIamWorkloadIdentityScp
+          # prevents creating users with privileged naming patterns
+          "networkmanager:AssociateTransitGatewayConnectPeer",
+          "networkmanager:DisassociateTransitGatewayConnectPeer",
+          "networkmanager:StartOrganizationServiceAccessUpdate",
+          "ram:CreateResourceShare",
+          "ram:EnableSharingWithAwsOrganization",
+          "ssm:ModifyDocumentPermission",
+          "wafv2:DisassociateFirewallManager",
+          "wafv2:PutFirewallManagerRuleGroups",
+          "cloudtrail:LookupEvents"
+        ]
+        Resource = ["*"]
+        Condition = {
+          ArnNotLike = {
+            "aws:PrincipalARN" = local.exempt_role_arns
+          }
+        }
+      },
+      {
+        Sid    = "CostImplicationRestrictions"
+        Effect = "Deny"
+        Action = [
+          "aws-portal:ModifyBilling",
+          "aws-portal:ModifyPaymentMethods",
+          "ce:CreateAnomalyMonitor",
+          "ce:CreateAnomalySubscription",
+          "ce:CreateCostCategoryDefinition",
+          "ce:CreateNotificationSubscription",
+          "ce:CreateReport",
+          "ce:UpdatePreferences",
+          "devicefarm:Purchase*",
+          "devicefarm:RenewOffering",
+          "dynamodb:Purchase*",
+          "ec2:AcceptReservedInstancesExchangeQuote",
+          "ec2:EnableIpamOrganizationAdminAccount",
+          "ec2:ModifyReservedInstances",
+          "ec2:Purchase*",
+          "elasticache:Purchase*",
+          "es:Purchase*",
+          "glacier:Purchase*",
+          "mediaconnect:Purchase*",
+          "medialive:Purchase*",
+          "rds:Purchase*",
+          "redshift:Purchase*",
+          "shield:AssociateDRTRole",
+          "shield:CreateProtection",
+          "shield:CreateSubscription",
+          "shield:UpdateEmergencyContactSettings"
+        ]
+        Resource = ["*"]
+        Condition = {
+          ArnNotLike = {
+            "aws:PrincipalARN" = local.exempt_role_arns
+          }
+        }
+      },
+      {
+        Sid    = "OperationalRestrictions"
+        Effect = "Deny"
+        Action = [
+          "account:EnableRegion",
+          "auditmanager:DeregisterOrganizationAdminAccount",
+          "auditmanager:RegisterOrganizationAdminAccount",
+          "backup:PutBackupVaultLockConfiguration",
+          "cassandra:UpdatePartitioner",
+          "chime:*",
+          "cloudhsm:*",
+          "deepcomposer:AssociateCoupon",
+          "directconnect:AllocateConnectionOnInterconnect",
+          "directconnect:AllocateHostedConnection",
+          "directconnect:AssociateHostedConnection",
+          "directconnect:CreateInterconnect",
+          "drs:CreateExtendedSourceServer",
+          "elasticache:PurchaseReservedCacheNodesOffering",
+          "events:CreatePartnerEventSource",
+          "glacier:AbortVaultLock",
+          "glacier:CompleteVaultLock",
+          "glacier:InitiateVaultLock",
+          "glacier:SetVaultAccessPolicy",
+          "iotevents:PutLoggingOptions",
+          "iotsitewise:CreateBulkImportJob",
+          "lambda:CreateCodeSigningConfig",
+          "license-manager:CreateLicenseConversionTaskForResource",
+          "macie2:UpdateOrganizationConfiguration",
+          "mediaConvert:CreateQueue",
+          "medialive:ClaimDevice",
+          "mgn:*",
+          "robomaker:CreateDeploymentJob",
+          "robomaker:CreateFleet",
+          "robomaker:CreateRobot",
+          "robomaker:DeregisterRobot",
+          "robomaker:RegisterRobot",
+          "robomaker:SyncDeploymentJob",
+          "robomaker:UpdateRobotDeployment",
+          "route53domains:*",
+          "s3-object-lambda:PutObjectLegalHold",
+          "s3-object-lambda:PutObjectRetention",
+          "s3:PutObjectLegalHold",
+          "ses:PutDeliverabilityDashboardOption",
+          "storagegateway:*",
+          "wam:*",
+          "wellarchitected:UpdateGlobalSettings",
+          "workmail:AssumeImpersonationRole",
+          "workmail:CreateImpersonationRole",
+          "workmail:UpdateImpersonationRole",
+          "workspaces:ModifyAccount"
+        ]
+        Resource = ["*"]
+        Condition = {
+          ArnNotLike = {
+            "aws:PrincipalARN" = local.exempt_role_arns
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+
+  lifecycle {
+    # Prevent accidental destruction of this critical SCP
+    prevent_destroy = true
+  }
+}
