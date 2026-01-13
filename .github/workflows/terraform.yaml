@@ -34,6 +34,7 @@ env:
   TF_VAR_namespace: "ndx"
   # Only US regions allowed - eu-west-2 is intentionally forbidden
   TF_VAR_managed_regions: '["us-east-1", "us-west-2"]'
+  TF_VAR_enable_cost_avoidance: "true"
   # Active OU - where running sandboxes are (cost avoidance attached here to avoid 5 SCP limit on parent)
   TF_VAR_cost_avoidance_ou_id: "ou-2laj-sre4rnjs"
 
@@ -48,22 +49,25 @@ env:
   TF_VAR_rds_storage_quota_gb: "500"  # 500GB total
 
   # ==========================================================================
-  # LAYER 3: AWS BUDGETS (FINAL COST DEFENSE)
+  # LAYER 3: AWS BUDGETS (PER-ACCOUNT)
   # ==========================================================================
-  # Budget names match existing ClickOps budgets (imported into Terraform)
+  # Budgets are created for EACH account discovered in the sandbox pool OU.
+  # As new pool accounts are created, re-running terraform adds their budgets.
   TF_VAR_enable_budgets: "true"
-  TF_VAR_daily_budget_name: "NDX Try usage daily"
-  TF_VAR_daily_budget_limit: "50"         # $50/day (matches existing)
-  TF_VAR_monthly_budget_name: "NDX Try budget"
-  TF_VAR_monthly_budget_limit: "1000"     # $1,000/month (matches existing)
-  TF_VAR_ec2_daily_budget: "100"          # $100/day EC2
-  TF_VAR_rds_daily_budget: "30"           # $30/day RDS
-  TF_VAR_lambda_daily_budget: "50"        # $50/day Lambda
-  TF_VAR_dynamodb_daily_budget: "50"      # $50/day DynamoDB (critical - not limitable via SCP)
-  TF_VAR_bedrock_daily_budget: "50"       # $50/day Bedrock AI
-  TF_VAR_data_transfer_daily_budget: "20" # $20/day data transfer
-  TF_VAR_enable_budget_automated_actions: "false"  # CAUTION: Enable to auto-stop EC2 at 100%
-  # TF_VAR_budget_alert_email: ""  # Set via GitHub secret if needed
+  # OU containing sandbox pool accounts (Active OU where pool-001, pool-002, etc. live)
+  TF_VAR_sandbox_pool_ou_id: "ou-2laj-sre4rnjs"
+  # Budget limits PER ACCOUNT
+  TF_VAR_daily_budget_limit: "50"
+  TF_VAR_monthly_budget_limit: "1000"
+  # Service-specific budgets (consolidated across all accounts)
+  TF_VAR_enable_service_budgets: "true"
+
+  # ==========================================================================
+  # IAM WORKLOAD IDENTITY
+  # ==========================================================================
+  # Allows sandbox users to create IAM roles for EC2/Lambda workloads
+  # while preventing privilege escalation.
+  TF_VAR_enable_iam_workload_identity: "false"
 
 jobs:
   # ============================================
@@ -74,6 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     # Block forks from running this workflow
     if: github.event.pull_request.head.repo.fork == false
+    env:
+      TF_VAR_budget_alert_emails: ${{ secrets.SLACK_BUDGET_ALERT_EMAIL }}
 
     steps:
       - name: Harden Runner
@@ -133,20 +139,27 @@ jobs:
         with:
           script: |
             const planOutput = process.env.PLAN_OUTPUT || 'No plan output available';
-            const output = `#### Terraform Format 🖌 \`${process.env.FMT_OUTCOME}\`
-            #### Terraform Init ⚙️ \`${process.env.INIT_OUTCOME}\`
-            #### Terraform Validate 🤖 \`${process.env.VALIDATE_OUTCOME}\`
-            #### Terraform Plan 📖 \`${process.env.PLAN_OUTCOME}\`
+            const fmtOutcome = process.env.FMT_OUTCOME;
+            const initOutcome = process.env.INIT_OUTCOME;
+            const validateOutcome = process.env.VALIDATE_OUTCOME;
+            const planOutcome = process.env.PLAN_OUTCOME;
 
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform
-            ${planOutput}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            const output = [
+              '#### Terraform Format 🖌 `' + fmtOutcome + '`',
+              '#### Terraform Init ⚙️ `' + initOutcome + '`',
+              '#### Terraform Validate 🤖 `' + validateOutcome + '`',
+              '#### Terraform Plan 📖 `' + planOutcome + '`',
+              '',
+              '<details><summary>Show Plan</summary>',
+              '',
+              '```terraform',
+              planOutput,
+              '```',
+              '',
+              '</details>',
+              '',
+              '*Pushed by: @${{ github.actor }}, Action: `${{ github.event_name }}`*'
+            ].join('\n');
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -177,6 +190,8 @@ jobs:
     # Must be triggered via Actions -> Run workflow -> select 'apply'
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     environment: production  # Requires approval if environment is configured
+    env:
+      TF_VAR_budget_alert_emails: ${{ secrets.SLACK_BUDGET_ALERT_EMAIL }}
 
     steps:
       - name: Harden Runner

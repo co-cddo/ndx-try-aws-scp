@@ -212,3 +212,30 @@ variable "max_eks_nodegroup_size" {
 }
 
 # NOTE: max_ecs_task_count removed - no reliable SCP condition key for ECS desired count
+
+variable "enable_cost_avoidance" {
+  description = "Whether to create cost avoidance SCP"
+  type        = bool
+  default     = true
+}
+
+variable "enable_iam_workload_identity" {
+  description = <<-EOT
+    Enable IAM Workload Identity SCP that allows users to create IAM roles
+    for workloads (EC2 instance roles, Lambda execution roles) while preventing
+    privilege escalation.
+
+    IMPORTANT: This SCP works alongside the existing Innovation Sandbox SCPs.
+    The Innovation Sandbox "SecurityAndIsolationRestrictions" SCP must be
+    modified to REMOVE iam:CreateRole and iam:CreateUser from its deny list
+    for this to take effect.
+
+    Security model:
+    - Users CAN create roles/users (needed for EC2, Lambda, etc.)
+    - Users CANNOT create roles matching exempt patterns (prevents SCP bypass)
+    - Users CANNOT modify/delete exempt roles (protects admin infrastructure)
+    - Any role users create is still subject to ALL SCPs
+  EOT
+  type        = bool
+  default     = false
+}

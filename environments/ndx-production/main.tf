@@ -43,8 +43,12 @@ module "scp_manager" {
   managed_regions = var.managed_regions
   sandbox_ou_id   = var.sandbox_ou_id
 
+  enable_cost_avoidance      = var.enable_cost_avoidance
   cost_avoidance_ou_id       = var.cost_avoidance_ou_id
   allowed_ec2_instance_types = var.allowed_ec2_instance_types
+
+  # IAM Workload Identity - allows users to create roles for EC2/Lambda/etc.
+  enable_iam_workload_identity = var.enable_iam_workload_identity
 
   tags = {
     Component = "SCP-Overrides"
@@ -129,7 +133,7 @@ module "service_quotas" {
 
   # Bedrock quotas - limit token usage to control AI costs
   enable_bedrock_quotas     = var.enable_service_quotas
-  bedrock_tokens_per_minute = 10000 # ~$144/day max at avg pricing
+  bedrock_tokens_per_minute = 5000 # ~$72/day max at avg pricing
 
   # Enable template association for automatic application
   enable_template_association = var.enable_service_quotas
@@ -140,37 +144,59 @@ module "service_quotas" {
 }
 
 # =============================================================================
-# AWS BUDGETS (24-HOUR LEASE COST GUARDRAILS)
+# DYNAMIC ACCOUNT DISCOVERY FROM SANDBOX POOL OU
 # =============================================================================
-# Budgets are the final layer of defense - they track ACTUAL SPEND
-# and can trigger automated actions when thresholds are exceeded.
+# Automatically discovers all accounts in the sandbox pool OU.
+# This enables per-account budget creation without manual account ID management.
 #
-# Defense in Depth:
-#   Layer 1: SCPs - What actions are allowed
-#   Layer 2: Service Quotas - How many resources can exist
-#   Layer 3: Budgets - How much money can be spent
+# As new pool accounts are created, re-running terraform will automatically
+# create budgets for them.
+
+data "aws_organizations_organizational_unit_descendant_accounts" "sandbox_pool" {
+  count     = var.enable_budgets ? 1 : 0
+  parent_id = var.sandbox_pool_ou_id
+}
+
+locals {
+  # Filter to only ACTIVE accounts (exclude suspended/closed)
+  sandbox_account_ids = var.enable_budgets ? [
+    for account in data.aws_organizations_organizational_unit_descendant_accounts.sandbox_pool[0].accounts :
+    account.id if account.status == "ACTIVE"
+  ] : []
+
+  # Count for logging/output
+  sandbox_account_count = length(local.sandbox_account_ids)
+}
+
+# =============================================================================
+# AWS BUDGETS (PER-ACCOUNT)
+# =============================================================================
+# Creates a separate budget for EACH sandbox account discovered in the pool OU.
+# This ensures one account can't consume another's budget allocation.
 
 module "budgets" {
   source = "../../modules/budgets-manager"
+  count  = var.enable_budgets ? 1 : 0
 
   namespace      = var.namespace
   primary_region = var.managed_regions[0]
 
+  # Per-account budgets - each account gets its own $X/day limit
+  sandbox_account_ids = local.sandbox_account_ids
+
   # SNS notifications
-  create_sns_topic = var.enable_budgets
+  create_sns_topic = true
   alert_emails     = var.budget_alert_emails
 
-  # Daily budget - matches existing ClickOps budget
-  daily_budget_name  = var.daily_budget_name
+  # Daily budget per account
   daily_budget_limit = var.daily_budget_limit
 
-  # Monthly aggregate budget - matches existing ClickOps budget
-  create_monthly_budget = var.enable_budgets
-  monthly_budget_name   = var.monthly_budget_name
+  # Monthly budget per account
+  create_monthly_budget = true
   monthly_budget_limit  = var.monthly_budget_limit
 
-  # Service-specific budgets catch runaway spending
-  create_service_budgets    = var.enable_budgets
+  # Service-specific budgets (consolidated across all accounts for visibility)
+  create_service_budgets    = var.enable_service_budgets
   ec2_daily_limit           = var.ec2_daily_budget
   rds_daily_limit           = var.rds_daily_budget
   lambda_daily_limit        = var.lambda_daily_budget
@@ -178,12 +204,8 @@ module "budgets" {
   bedrock_daily_limit       = var.bedrock_daily_budget
   data_transfer_daily_limit = var.data_transfer_daily_budget
 
-  # Automated actions - DISABLED by default for safety
-  # When enabled, will stop EC2 instances at 100% budget
-  enable_automated_actions = var.enable_budget_automated_actions
-
-  # Filter to sandbox accounts (optional)
-  sandbox_account_ids = var.sandbox_account_ids
+  # Automated actions - always enabled (stops EC2 at 100% budget)
+  enable_automated_actions = true
 
   tags = {
     Component = "Budget-Guardrails"
@@ -244,7 +266,7 @@ module "dynamodb_billing_enforcer" {
   max_wcu = 100 # Will result in ~$1.56/day per table
 
   # Send alerts to same topic as budgets
-  sns_topic_arn = var.enable_budgets ? module.budgets.sns_topic_arn : null
+  sns_topic_arn = var.enable_budgets ? module.budgets[0].sns_topic_arn : null
 
   # Exempt infrastructure tables if any
   exempt_table_prefixes = var.dynamodb_exempt_prefixes
@@ -264,6 +286,8 @@ output "scp_policy_ids" {
     nuke_supported_services = module.scp_manager.nuke_supported_services_policy_id
     limit_regions           = module.scp_manager.limit_regions_policy_id
     cost_avoidance          = module.scp_manager.cost_avoidance_policy_id
+    iam_workload_identity   = module.scp_manager.iam_workload_identity_policy_id
+    restrictions            = module.scp_manager.restrictions_policy_id
   }
 }
 
@@ -282,14 +306,38 @@ output "estimated_max_daily_cost" {
   value       = var.enable_service_quotas ? module.service_quotas.estimated_max_daily_cost : "Service quotas disabled"
 }
 
-output "budget_limits_summary" {
-  description = "Summary of budget limits and thresholds"
-  value       = var.enable_budgets ? module.budgets.budget_limits_summary : null
+# -----------------------------------------------------------------------------
+# BUDGET OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "discovered_sandbox_accounts" {
+  description = "List of sandbox account IDs discovered from the pool OU"
+  value = var.enable_budgets ? {
+    count       = local.sandbox_account_count
+    account_ids = local.sandbox_account_ids
+  } : null
 }
 
 output "budget_sns_topic_arn" {
   description = "SNS topic ARN for budget alerts"
-  value       = var.enable_budgets ? module.budgets.sns_topic_arn : null
+  value       = var.enable_budgets ? module.budgets[0].sns_topic_arn : null
+}
+
+output "per_account_daily_budgets" {
+  description = "Map of account IDs to their daily budget names"
+  value       = var.enable_budgets ? module.budgets[0].daily_budget_names_per_account : null
+}
+
+output "budget_summary" {
+  description = "Summary of budget configuration"
+  value = var.enable_budgets ? {
+    mode                = "per-account"
+    accounts_discovered = local.sandbox_account_count
+    daily_limit         = "$${var.daily_budget_limit}/day per account"
+    monthly_limit       = "$${var.monthly_budget_limit}/month per account"
+    service_budgets     = var.enable_service_budgets ? "enabled" : "disabled"
+    source_ou           = var.sandbox_pool_ou_id
+  } : null
 }
 
 output "cost_anomaly_detection_summary" {
@@ -300,67 +348,4 @@ output "cost_anomaly_detection_summary" {
 output "dynamodb_billing_enforcer_summary" {
   description = "Summary of DynamoDB billing enforcement"
   value       = var.enable_dynamodb_billing_enforcer ? module.dynamodb_billing_enforcer[0].enforcement_summary : null
-}
-
-output "cost_defense_summary" {
-  description = "Summary of all cost defense layers"
-  value = {
-    layer_1_scps = {
-      status = "Always enabled"
-      controls = [
-        "Instance type allowlist",
-        "GPU/accelerated instances blocked",
-        "EBS volume type/size limits",
-        "RDS instance class/Multi-AZ/IOPS limits",
-        "ElastiCache node type limits",
-        "Auto Scaling Group size limits",
-        "EKS nodegroup size limits",
-        "Expensive services blocked"
-      ]
-    }
-    layer_2_quotas = {
-      status              = var.enable_service_quotas ? "Enabled" : "Disabled"
-      max_ec2_vcpus       = var.enable_service_quotas ? var.ec2_vcpu_quota : "N/A"
-      max_ebs_storage     = var.enable_service_quotas ? "${var.ebs_storage_quota_tib * 2} TiB" : "N/A"
-      max_rds_instances   = var.enable_service_quotas ? var.rds_instance_quota : "N/A"
-      lambda_concurrent   = var.enable_service_quotas ? "25 (reduced from 100)" : "N/A"
-      dynamodb_wcu_rcu    = var.enable_service_quotas ? "1000 WCU/RCU" : "N/A"
-      apigateway_throttle = var.enable_service_quotas ? "100 req/sec" : "N/A"
-      bedrock_all_models  = var.enable_service_quotas ? "Quotas applied" : "N/A"
-    }
-    layer_3_budgets = {
-      status            = var.enable_budgets ? "Enabled" : "Disabled"
-      daily_limit       = var.enable_budgets ? "$${var.daily_budget_limit}/day" : "N/A"
-      monthly_limit     = var.enable_budgets ? "$${var.monthly_budget_limit}/month" : "N/A"
-      automated_actions = var.enable_budget_automated_actions ? "Enabled" : "Disabled"
-      service_budgets   = var.enable_budgets ? "EC2, RDS, Lambda, DynamoDB, Bedrock, S3, CloudWatch, StepFunctions, API Gateway, Data Transfer" : "N/A"
-    }
-    layer_4_anomaly_detection = {
-      status          = var.enable_cost_anomaly_detection ? "Enabled" : "Disabled"
-      cost            = "FREE"
-      alert_frequency = var.enable_cost_anomaly_detection ? "DAILY" : "N/A"
-      threshold       = var.enable_cost_anomaly_detection ? "$10" : "N/A"
-      high_priority   = var.enable_cost_anomaly_detection ? "Immediate @ $${var.daily_budget_limit}" : "N/A"
-    }
-    layer_5_dynamodb_enforcer = {
-      status       = var.enable_dynamodb_billing_enforcer ? "Enabled" : "Disabled"
-      mode         = var.enable_dynamodb_billing_enforcer ? "Auto-convert On-Demand to Provisioned" : "N/A"
-      max_capacity = var.enable_dynamodb_billing_enforcer ? "100 RCU, 100 WCU per table" : "N/A"
-      gap_closed   = "DynamoDB On-Demand bypass"
-    }
-    gap_analysis = {
-      critical_gaps_closed = [
-        "CloudWatch Logs: Budget alert at $25/day",
-        "Lambda memory abuse: Concurrent reduced to 25",
-        "DynamoDB On-Demand: Auto-convert enforcer",
-        "Bedrock all models: Quotas for Titan/Stability/Cohere/Meta"
-      ]
-      remaining_risks = [
-        "CloudWatch Logs: Budget alerts AFTER spend (no prevention)",
-        "Lambda memory: Still ~$360/day max at 10GB×25 concurrent",
-        "Some services rely on budget detection only"
-      ]
-      defense_effectiveness = "~95% of attack vectors blocked or bounded"
-    }
-  }
 }
