@@ -20,10 +20,10 @@ output "eventbridge_rule_arn" {
 output "enforcement_summary" {
   description = "Summary of DynamoDB billing enforcement configuration"
   value = {
-    action           = "DELETE"
-    exempt_prefixes  = var.exempt_table_prefixes
-    notifications    = var.sns_topic_arn != null ? "Enabled" : "Disabled"
-    eventbridge      = "Broadcasts 'DynamoDB On-Demand Table Deleted' events"
-    cost_protection  = "On-Demand tables are DELETED to prevent unlimited costs"
+    action          = "DELETE"
+    exempt_prefixes = var.exempt_table_prefixes
+    notifications   = var.sns_topic_arn != null ? "Enabled" : "Disabled"
+    eventbridge     = "Broadcasts 'DynamoDB On-Demand Table Deleted' events"
+    cost_protection = "On-Demand tables are DELETED to prevent unlimited costs"
   }
 }

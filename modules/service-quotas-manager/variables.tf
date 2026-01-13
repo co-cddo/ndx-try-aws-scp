@@ -21,16 +21,15 @@
 # GENERAL CONFIGURATION
 # -----------------------------------------------------------------------------
 
-variable "primary_region" {
-  description = "Primary AWS region for quotas (e.g., us-east-1)"
-  type        = string
-  default     = "us-east-1"
-}
+variable "regions" {
+  description = <<-EOT
+    List of AWS regions to apply service quotas to.
+    Quotas are applied to ALL regions in this list.
 
-variable "secondary_region" {
-  description = "Secondary AWS region for quotas (e.g., us-west-2). Set to null to disable."
-  type        = string
-  default     = "us-west-2"
+    Example: ["us-west-2", "us-east-1", "eu-west-2"]
+  EOT
+  type        = list(string)
+  default     = ["us-west-2"] # ISB is in us-west-2
 }
 
 variable "enable_template_association" {

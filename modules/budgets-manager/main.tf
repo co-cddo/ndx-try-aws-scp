@@ -8,6 +8,15 @@ terraform {
   }
 }
 
+# -----------------------------------------------------------------------------
+# DRY: Centralized budget configuration constants
+# -----------------------------------------------------------------------------
+locals {
+  budget_limit_unit = "USD"
+  daily_time_unit   = "DAILY"
+  monthly_time_unit = "MONTHLY"
+}
+
 # =============================================================================
 # AWS BUDGETS MANAGER
 # =============================================================================
@@ -167,8 +176,8 @@ resource "aws_budgets_budget" "daily_cost_per_account" {
   name         = "${var.namespace}-sandbox-daily-${each.value}"
   budget_type  = "COST"
   limit_amount = tostring(var.daily_budget_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -235,8 +244,8 @@ resource "aws_budgets_budget" "daily_cost" {
   name         = var.daily_budget_name
   budget_type  = "COST"
   limit_amount = tostring(var.daily_budget_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -323,8 +332,8 @@ resource "aws_budgets_budget" "monthly_cost_per_account" {
   name         = "${var.namespace}-sandbox-monthly-${each.value}"
   budget_type  = "COST"
   limit_amount = tostring(var.monthly_budget_limit)
-  limit_unit   = "USD"
-  time_unit    = "MONTHLY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.monthly_time_unit
 
   cost_types {
     include_credit             = false
@@ -390,8 +399,8 @@ resource "aws_budgets_budget" "monthly_cost" {
   name         = var.monthly_budget_name
   budget_type  = "COST"
   limit_amount = tostring(var.monthly_budget_limit)
-  limit_unit   = "USD"
-  time_unit    = "MONTHLY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.monthly_time_unit
 
   cost_types {
     include_credit             = false
@@ -451,8 +460,8 @@ resource "aws_budgets_budget" "ec2_daily" {
   name         = "${var.namespace}-sandbox-ec2-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.ec2_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -508,8 +517,8 @@ resource "aws_budgets_budget" "rds_daily" {
   name         = "${var.namespace}-sandbox-rds-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.rds_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -565,8 +574,8 @@ resource "aws_budgets_budget" "lambda_daily" {
   name         = "${var.namespace}-sandbox-lambda-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.lambda_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -622,8 +631,8 @@ resource "aws_budgets_budget" "dynamodb_daily" {
   name         = "${var.namespace}-sandbox-dynamodb-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.dynamodb_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -679,8 +688,8 @@ resource "aws_budgets_budget" "bedrock_daily" {
   name         = "${var.namespace}-sandbox-bedrock-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.bedrock_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -745,8 +754,8 @@ resource "aws_budgets_budget" "data_transfer_daily" {
   name         = "${var.namespace}-sandbox-data-transfer-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.data_transfer_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -814,8 +823,8 @@ resource "aws_budgets_budget" "cloudwatch_daily" {
   name         = "${var.namespace}-sandbox-cloudwatch-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.cloudwatch_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -886,8 +895,8 @@ resource "aws_budgets_budget" "stepfunctions_daily" {
   name         = "${var.namespace}-sandbox-stepfunctions-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.stepfunctions_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -948,8 +957,8 @@ resource "aws_budgets_budget" "s3_daily" {
   name         = "${var.namespace}-sandbox-s3-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.s3_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false
@@ -1010,8 +1019,8 @@ resource "aws_budgets_budget" "apigateway_daily" {
   name         = "${var.namespace}-sandbox-apigateway-daily"
   budget_type  = "COST"
   limit_amount = tostring(var.apigateway_daily_limit)
-  limit_unit   = "USD"
-  time_unit    = "DAILY"
+  limit_unit   = local.budget_limit_unit
+  time_unit    = local.daily_time_unit
 
   cost_types {
     include_credit             = false

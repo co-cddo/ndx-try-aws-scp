@@ -2,6 +2,11 @@
 # SERVICE QUOTAS MANAGER - OUTPUTS
 # =============================================================================
 
+output "regions" {
+  description = "List of regions where service quotas are applied"
+  value       = var.regions
+}
+
 output "ec2_on_demand_vcpu_limit" {
   description = "EC2 On-Demand Standard vCPU limit"
   value       = var.enable_ec2_quotas ? var.ec2_on_demand_vcpu_limit : null

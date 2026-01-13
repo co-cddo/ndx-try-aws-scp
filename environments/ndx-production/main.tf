@@ -66,8 +66,8 @@ module "service_quotas" {
   source = "../../modules/service-quotas-manager"
 
   # Regions matching the SCP limit_regions configuration
-  primary_region   = var.managed_regions[0] # us-east-1
-  secondary_region = length(var.managed_regions) > 1 ? var.managed_regions[1] : null
+  # All managed regions get the same quota limits applied
+  regions = var.managed_regions
 
   # EC2 quotas - 64 vCPUs allows reasonable compute, ~$77/day max
   enable_ec2_quotas         = var.enable_service_quotas
@@ -84,8 +84,8 @@ module "service_quotas" {
   enable_ebs_quotas   = var.enable_service_quotas
   ebs_gp3_storage_tib = var.ebs_storage_quota_tib
   ebs_gp2_storage_tib = var.ebs_storage_quota_tib
-  ebs_io1_iops_limit  = 0 # Blocked - also in SCP
-  ebs_io2_iops_limit  = 0 # Blocked - also in SCP
+  ebs_io1_iops_limit  = 0  # Blocked - also in SCP
+  ebs_io2_iops_limit  = 0  # Blocked - also in SCP
   ebs_snapshot_limit  = 20 # Reduced - 100 excessive for 24hr lease
 
   # Lambda quotas - 100 concurrent executions
