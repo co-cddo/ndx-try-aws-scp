@@ -120,35 +120,43 @@ jobs:
       - name: Terraform Plan
         id: plan
         working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan_output.txt
-          echo "plan_output<<EOF" >> $GITHUB_OUTPUT
-          cat plan_output.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        run: terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan_output.txt
         continue-on-error: true
 
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
-          PLAN_OUTPUT: ${{ steps.plan.outputs.plan_output }}
           FMT_OUTCOME: ${{ steps.fmt.outcome }}
           INIT_OUTCOME: ${{ steps.init.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          WORKING_DIR: ${{ env.WORKING_DIR }}
         with:
           script: |
-            const planOutput = process.env.PLAN_OUTPUT || 'No plan output available';
-            const fmtOutcome = process.env.FMT_OUTCOME;
-            const initOutcome = process.env.INIT_OUTCOME;
-            const validateOutcome = process.env.VALIDATE_OUTCOME;
-            const planOutcome = process.env.PLAN_OUTCOME;
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read plan output from file (avoids "argument list too long" error)
+            const planFile = path.join(process.env.GITHUB_WORKSPACE, process.env.WORKING_DIR, 'plan_output.txt');
+            let planOutput = 'No plan output available';
+            try {
+              planOutput = fs.readFileSync(planFile, 'utf8');
+            } catch (e) {
+              console.log('Could not read plan file:', e.message);
+            }
+
+            // Truncate if too long for GitHub comment (max 65536 chars)
+            const maxLength = 60000;
+            if (planOutput.length > maxLength) {
+              planOutput = planOutput.substring(0, maxLength) + '\n\n... (truncated, see workflow logs for full output)';
+            }
 
             const output = [
-              '#### Terraform Format 🖌 `' + fmtOutcome + '`',
-              '#### Terraform Init ⚙️ `' + initOutcome + '`',
-              '#### Terraform Validate 🤖 `' + validateOutcome + '`',
-              '#### Terraform Plan 📖 `' + planOutcome + '`',
+              '#### Terraform Format 🖌 `' + process.env.FMT_OUTCOME + '`',
+              '#### Terraform Init ⚙️ `' + process.env.INIT_OUTCOME + '`',
+              '#### Terraform Validate 🤖 `' + process.env.VALIDATE_OUTCOME + '`',
+              '#### Terraform Plan 📖 `' + process.env.PLAN_OUTCOME + '`',
               '',
               '<details><summary>Show Plan</summary>',
               '',
