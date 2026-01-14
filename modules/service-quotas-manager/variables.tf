@@ -29,7 +29,7 @@ variable "regions" {
     Example: ["us-west-2", "us-east-1", "eu-west-2"]
   EOT
   type        = list(string)
-  default     = ["us-west-2"] # ISB is in us-west-2
+  default     = ["us-west-2", "us-east-1"] # ISB is in us-west-2, us-east-1 for global services
 }
 
 variable "enable_template_association" {

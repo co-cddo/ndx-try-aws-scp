@@ -513,7 +513,8 @@ resource "aws_organizations_policy" "cost_avoidance" {
       # EXPENSIVE SERVICES - COMPLETE BLOCKS
       # =========================================================================
       [
-        # Original expensive services
+        # Original expensive services - NO EXEMPTIONS for safety
+        # These services should be denied for EVERYONE in sandbox accounts
         {
           Sid    = "DenyExpensiveManagedServices"
           Effect = "Deny"
@@ -531,11 +532,7 @@ resource "aws_organizations_policy" "cost_avoidance" {
             "redshift:CreateCluster",
           ]
           Resource = ["*"]
-          Condition = {
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
-          }
+          # No exemption - these services are blocked for everyone in sandbox accounts
         },
         # Additional expensive services (configurable)
         {

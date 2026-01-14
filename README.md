@@ -334,13 +334,10 @@ variable "enable_dynamodb_billing_enforcer" { default = true }
 variable "daily_budget_limit" { default = 50 }
 variable "monthly_budget_limit" { default = 1000 }
 
-# Alert recipients
+# Alert recipients - set via GitHub Actions secret BUDGET_ALERT_EMAILS
+# Do NOT hardcode emails in terraform files
 variable "budget_alert_emails" {
-  default = [
-    "chris.Nesbitt-Smith@digital.cabinet-office.gov.uk",
-    "ndx-aaaaqa6ovbj5owumuw4jkzc44m@gds.slack.com",
-    "ndx@dsit.gov.uk"
-  ]
+  default = [] # Provided via TF_VAR_budget_alert_emails from GitHub secret
 }
 ```
 
