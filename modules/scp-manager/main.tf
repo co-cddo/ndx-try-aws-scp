@@ -234,43 +234,17 @@ locals {
 }
 
 # =============================================================================
-# MODIFIED SCP: Limit Regions (with Bedrock inference profile exception)
+# CONSOLIDATED: Region restrictions moved into RestrictionsScp
 # =============================================================================
-
-resource "aws_organizations_policy" "limit_regions" {
-  name        = "InnovationSandboxLimitRegionsScp"
-  description = "SCP to limit use of AWS Regions. Includes Bedrock inference profile exception. MANAGED BY TERRAFORM."
-  type        = "SERVICE_CONTROL_POLICY"
-
-  content = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "DenyRegionAccess"
-        Effect   = "Deny"
-        Action   = ["*"]
-        Resource = ["*"]
-        Condition = {
-          StringNotEquals = {
-            "aws:RequestedRegion" = var.managed_regions
-          }
-          ArnNotLike = {
-            "aws:PrincipalARN" = local.exempt_role_arns
-            # Allow cross-region Bedrock inference profiles
-            "bedrock:InferenceProfileArn" = "arn:aws:bedrock:*:*:inference-profile/*"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_organizations_policy_attachment" "limit_regions" {
-  policy_id = aws_organizations_policy.limit_regions.id
-  target_id = var.sandbox_ou_id
-}
+# The LimitRegionsScp has been consolidated into InnovationSandboxRestrictionsScp
+# to free up an SCP slot on the Sandbox Pool OU (AWS limit: 5 SCPs per OU).
+#
+# The region denial statement is now in the "DenyRegionAccess" Sid within
+# the restrictions policy.
+#
+# NOTE: The Bedrock inference profile exception was removed as it used an
+# invalid condition key. Cross-region Bedrock access should be handled via
+# IAM policies if needed.
 
 # =============================================================================
 # ENHANCED SCP: Cost Avoidance
@@ -738,12 +712,29 @@ resource "aws_organizations_policy_attachment" "iam_workload_identity" {
 
 resource "aws_organizations_policy" "restrictions" {
   name        = "InnovationSandboxRestrictionsScp"
-  description = "SCP for security and isolation restrictions. MANAGED BY TERRAFORM."
+  description = "SCP for security, isolation, and region restrictions. MANAGED BY TERRAFORM."
   type        = "SERVICE_CONTROL_POLICY"
 
   content = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # =======================================================================
+      # REGION RESTRICTIONS (consolidated from LimitRegionsScp)
+      # =======================================================================
+      {
+        Sid      = "DenyRegionAccess"
+        Effect   = "Deny"
+        Action   = ["*"]
+        Resource = ["*"]
+        Condition = {
+          StringNotEquals = {
+            "aws:RequestedRegion" = var.managed_regions
+          }
+          ArnNotLike = {
+            "aws:PrincipalARN" = local.exempt_role_arns
+          }
+        }
+      },
       {
         Sid    = "SecurityAndIsolationRestrictions"
         Effect = "Deny"

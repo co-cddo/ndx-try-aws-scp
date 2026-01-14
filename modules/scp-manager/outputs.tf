@@ -8,14 +8,16 @@ output "nuke_supported_services_policy_arn" {
   value       = aws_organizations_policy.nuke_supported_services.arn
 }
 
+# DEPRECATED: limit_regions has been consolidated into restrictions SCP
+# These outputs now point to the restrictions policy for backwards compatibility
 output "limit_regions_policy_id" {
-  description = "ID of the Limit Regions SCP"
-  value       = aws_organizations_policy.limit_regions.id
+  description = "DEPRECATED: Region restrictions consolidated into Restrictions SCP. Returns restrictions policy ID."
+  value       = aws_organizations_policy.restrictions.id
 }
 
 output "limit_regions_policy_arn" {
-  description = "ARN of the Limit Regions SCP"
-  value       = aws_organizations_policy.limit_regions.arn
+  description = "DEPRECATED: Region restrictions consolidated into Restrictions SCP. Returns restrictions policy ARN."
+  value       = aws_organizations_policy.restrictions.arn
 }
 
 output "cost_avoidance_policy_id" {

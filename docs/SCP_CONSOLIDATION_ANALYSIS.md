@@ -1,18 +1,24 @@
 # SCP Consolidation Analysis
 
-## Current State
+## Current State (After Consolidation)
 
 AWS limit: **5 SCPs per OU**
 
 ### SCPs Created by This Module
 
-| SCP Name | Attached To | Conditional | Lines |
+| SCP Name | Attached To | Conditional | Notes |
 |----------|-------------|-------------|-------|
-| `InnovationSandboxAwsNukeSupportedServicesScp` | sandbox_ou_id | No | ~200 |
-| `InnovationSandboxLimitRegionsScp` | sandbox_ou_id | No | ~25 |
-| `InnovationSandboxCostAvoidanceScp` | cost_avoidance_ou_id (Active) | No | ~280 |
-| `InnovationSandboxIamWorkloadIdentityScp` | sandbox_ou_id | Yes (disabled by default) | ~130 |
-| `InnovationSandboxRestrictionsScp` | (imported, not attached) | No | ~130 |
+| `InnovationSandboxAwsNukeSupportedServicesScp` | sandbox_ou_id | No | Service allowlist |
+| `InnovationSandboxRestrictionsScp` | sandbox_ou_id | No | **Now includes region restrictions** |
+| `InnovationSandboxCostAvoidanceScp` | cost_avoidance_ou_id (Active) | No | Cost controls |
+| `InnovationSandboxIamWorkloadIdentityScp` | sandbox_ou_id | Yes (disabled) | IAM protections |
+
+### Consolidation Performed
+
+**LimitRegionsScp merged into RestrictionsScp** to free one SCP slot on Sandbox Pool OU.
+
+- Before: 5 SCPs on Sandbox Pool OU (at limit)
+- After: 4 SCPs on Sandbox Pool OU (1 slot free for IamWorkloadIdentity)
 
 ### OU Structure
 
