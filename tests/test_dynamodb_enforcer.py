@@ -3,7 +3,8 @@ Unit tests for DynamoDB Billing Mode Enforcer Lambda
 
 Run with: pytest tests/ -v
 
-Note: conftest.py sets AWS_DEFAULT_REGION and adds lambda to sys.path
+Note: conftest.py adds lambda directory to sys.path.
+No AWS credentials needed - Lambda uses lazy client initialization, fully mockable.
 """
 import json
 import os
@@ -54,6 +55,30 @@ def mock_env():
         'EVENTBRIDGE_SOURCE': 'ndx.dynamodb-billing-enforcer',
     }):
         yield
+
+
+@pytest.fixture
+def mock_boto3_clients():
+    """Create mock boto3 clients for DynamoDB, Events, and SNS."""
+    mock_dynamodb = MagicMock()
+    mock_events = MagicMock()
+    mock_sns = MagicMock()
+
+    def mock_get_client(service_name):
+        if service_name == 'dynamodb':
+            return mock_dynamodb
+        elif service_name == 'events':
+            return mock_events
+        elif service_name == 'sns':
+            return mock_sns
+        raise ValueError(f"Unknown service: {service_name}")
+
+    return {
+        'dynamodb': mock_dynamodb,
+        'events': mock_events,
+        'sns': mock_sns,
+        'get_client': mock_get_client,
+    }
 
 
 class TestExtractEventMetadata:
@@ -131,7 +156,7 @@ class TestLambdaHandler:
         assert result['statusCode'] == 200
         assert 'exempt' in result['body']
 
-    def test_handles_table_not_found(self, mock_env):
+    def test_handles_table_not_found(self, mock_env, mock_boto3_clients):
         """Should handle ResourceNotFoundException gracefully."""
         import index
 
@@ -139,22 +164,21 @@ class TestLambdaHandler:
         class ResourceNotFoundException(Exception):
             pass
 
-        # Mock the dynamodb client
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
         mock_dynamodb.exceptions.ResourceNotFoundException = ResourceNotFoundException
         mock_dynamodb.describe_table.side_effect = ResourceNotFoundException("Table not found")
 
-        with patch.object(index, 'dynamodb', mock_dynamodb):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             result = index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         assert result['statusCode'] == 200
         assert 'not found' in result['body']
 
-    def test_allows_provisioned_tables(self, mock_env):
+    def test_allows_provisioned_tables(self, mock_env, mock_boto3_clients):
         """Should allow tables with PROVISIONED billing mode."""
         import index
 
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
         mock_dynamodb.describe_table.return_value = {
             'Table': {
                 'TableName': 'test-table',
@@ -162,18 +186,18 @@ class TestLambdaHandler:
             }
         }
 
-        with patch.object(index, 'dynamodb', mock_dynamodb):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             result = index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         assert result['statusCode'] == 200
         assert 'already provisioned' in result['body']
         mock_dynamodb.delete_table.assert_not_called()
 
-    def test_deletes_on_demand_tables(self, mock_env):
+    def test_deletes_on_demand_tables(self, mock_env, mock_boto3_clients):
         """Should delete tables with PAY_PER_REQUEST billing mode."""
         import index
 
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
         mock_dynamodb.describe_table.return_value = {
             'Table': {
                 'TableName': 'test-table',
@@ -181,23 +205,19 @@ class TestLambdaHandler:
             }
         }
 
-        mock_events = MagicMock()
-        mock_sns = MagicMock()
-
-        with patch.object(index, 'dynamodb', mock_dynamodb), \
-             patch.object(index, 'events', mock_events), \
-             patch.object(index, 'sns', mock_sns):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             result = index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         assert result['statusCode'] == 200
         assert 'DELETED' in result['body']
         mock_dynamodb.delete_table.assert_called_once_with(TableName='test-table')
 
-    def test_broadcasts_eventbridge_event(self, mock_env):
+    def test_broadcasts_eventbridge_event(self, mock_env, mock_boto3_clients):
         """Should broadcast event to EventBridge with account ID."""
         import index
 
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
+        mock_events = mock_boto3_clients['events']
         mock_dynamodb.describe_table.return_value = {
             'Table': {
                 'TableName': 'test-table',
@@ -205,12 +225,7 @@ class TestLambdaHandler:
             }
         }
 
-        mock_events = MagicMock()
-        mock_sns = MagicMock()
-
-        with patch.object(index, 'dynamodb', mock_dynamodb), \
-             patch.object(index, 'events', mock_events), \
-             patch.object(index, 'sns', mock_sns):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         mock_events.put_events.assert_called_once()
@@ -223,14 +238,12 @@ class TestLambdaHandler:
         assert event_detail['action'] == 'DELETED'
         assert 'triggeredBy' in event_detail
 
-    def test_sends_sns_notification(self, mock_env):
+    def test_sends_sns_notification(self, mock_env, mock_boto3_clients):
         """Should send SNS notification with MessageAttributes."""
         import index
 
-        # Set the SNS topic ARN
-        index.SNS_TOPIC_ARN = 'arn:aws:sns:us-west-2:123456789012:test-topic'
-
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
+        mock_sns = mock_boto3_clients['sns']
         mock_dynamodb.describe_table.return_value = {
             'Table': {
                 'TableName': 'test-table',
@@ -238,12 +251,7 @@ class TestLambdaHandler:
             }
         }
 
-        mock_events = MagicMock()
-        mock_sns = MagicMock()
-
-        with patch.object(index, 'dynamodb', mock_dynamodb), \
-             patch.object(index, 'events', mock_events), \
-             patch.object(index, 'sns', mock_sns):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         mock_sns.publish.assert_called_once()
@@ -252,11 +260,11 @@ class TestLambdaHandler:
         assert 'MessageAttributes' in call_args[1]
         assert call_args[1]['MessageAttributes']['accountId']['StringValue'] == '123456789012'
 
-    def test_includes_account_in_message(self, mock_env):
+    def test_includes_account_in_message(self, mock_env, mock_boto3_clients):
         """Should include account ID in the notification message."""
         import index
 
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
         mock_dynamodb.describe_table.return_value = {
             'Table': {
                 'TableName': 'test-table',
@@ -264,12 +272,7 @@ class TestLambdaHandler:
             }
         }
 
-        mock_events = MagicMock()
-        mock_sns = MagicMock()
-
-        with patch.object(index, 'dynamodb', mock_dynamodb), \
-             patch.object(index, 'events', mock_events), \
-             patch.object(index, 'sns', mock_sns):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             result = index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         assert '123456789012' in result['body']
@@ -279,7 +282,7 @@ class TestLambdaHandler:
 class TestEventBridgeEventSchema:
     """Tests to document the EventBridge event schema."""
 
-    def test_event_schema_documentation(self, mock_env):
+    def test_event_schema_documentation(self, mock_env, mock_boto3_clients):
         """
         Documents the EventBridge event schema for notification systems.
 
@@ -312,7 +315,8 @@ class TestEventBridgeEventSchema:
         """
         import index
 
-        mock_dynamodb = MagicMock()
+        mock_dynamodb = mock_boto3_clients['dynamodb']
+        mock_events = mock_boto3_clients['events']
         mock_dynamodb.describe_table.return_value = {
             'Table': {
                 'TableName': 'test-table',
@@ -320,15 +324,7 @@ class TestEventBridgeEventSchema:
             }
         }
 
-        mock_events = MagicMock()
-        mock_sns = MagicMock()
-
-        # Set the event source
-        index.EVENTBRIDGE_SOURCE = 'ndx.dynamodb-billing-enforcer'
-
-        with patch.object(index, 'dynamodb', mock_dynamodb), \
-             patch.object(index, 'events', mock_events), \
-             patch.object(index, 'sns', mock_sns):
+        with patch.object(index, 'get_boto3_client', mock_boto3_clients['get_client']):
             index.lambda_handler(SAMPLE_CLOUDTRAIL_EVENT, None)
 
         call_args = mock_events.put_events.call_args

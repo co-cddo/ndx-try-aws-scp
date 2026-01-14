@@ -30,17 +30,26 @@ import json
 import os
 from datetime import datetime, timezone
 
-import boto3
 
-dynamodb = boto3.client('dynamodb')
-sns = boto3.client('sns')
-events = boto3.client('events')
-sts = boto3.client('sts')
+def get_config():
+    """Get configuration from environment variables."""
+    return {
+        'sns_topic_arn': os.environ.get('SNS_TOPIC_ARN', ''),
+        'exempt_table_prefixes': os.environ.get('EXEMPT_TABLE_PREFIXES', '').split(','),
+        'event_bus_name': os.environ.get('EVENT_BUS_NAME', 'default'),
+        'eventbridge_source': os.environ.get('EVENTBRIDGE_SOURCE', 'sandbox.dynamodb-billing-enforcer'),
+    }
 
-SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
-EXEMPT_TABLE_PREFIXES = os.environ.get('EXEMPT_TABLE_PREFIXES', '').split(',')
-EVENT_BUS_NAME = os.environ.get('EVENT_BUS_NAME', 'default')
-EVENTBRIDGE_SOURCE = os.environ.get('EVENTBRIDGE_SOURCE', 'sandbox.dynamodb-billing-enforcer')
+
+def get_boto3_client(service_name):
+    """
+    Create boto3 client lazily.
+
+    This allows Lambda container reuse while making the code testable.
+    Clients are cached by boto3 internally when running in Lambda.
+    """
+    import boto3
+    return boto3.client(service_name)
 
 
 def extract_event_metadata(event: dict) -> dict:
@@ -83,6 +92,9 @@ def lambda_handler(event, context):
     """
     print(f"Received event: {json.dumps(event)}")
 
+    # Get configuration
+    config = get_config()
+
     try:
         detail = event.get('detail', {})
         metadata = extract_event_metadata(event)
@@ -99,10 +111,13 @@ def lambda_handler(event, context):
               f"region {metadata['region']}, triggered by {metadata['user_arn']}")
 
         # Check if table is exempt
-        for prefix in EXEMPT_TABLE_PREFIXES:
+        for prefix in config['exempt_table_prefixes']:
             if prefix and table_name.startswith(prefix.strip()):
                 print(f"Table {table_name} is exempt (prefix: {prefix})")
                 return {'statusCode': 200, 'body': f'Table {table_name} exempt'}
+
+        # Get DynamoDB client
+        dynamodb = get_boto3_client('dynamodb')
 
         # Get current table status
         try:
@@ -154,13 +169,14 @@ def lambda_handler(event, context):
             }
 
             try:
-                events.put_events(
+                events_client = get_boto3_client('events')
+                events_client.put_events(
                     Entries=[
                         {
-                            'Source': EVENTBRIDGE_SOURCE,
+                            'Source': config['eventbridge_source'],
                             'DetailType': 'DynamoDB On-Demand Table Deleted',
                             'Detail': json.dumps(event_detail),
-                            'EventBusName': EVENT_BUS_NAME
+                            'EventBusName': config['event_bus_name']
                         }
                     ]
                 )
@@ -169,10 +185,11 @@ def lambda_handler(event, context):
                 print(f"Failed to broadcast EventBridge event: {str(e)}")
 
             # Send SNS notification
-            if SNS_TOPIC_ARN:
+            if config['sns_topic_arn']:
                 try:
-                    sns.publish(
-                        TopicArn=SNS_TOPIC_ARN,
+                    sns_client = get_boto3_client('sns')
+                    sns_client.publish(
+                        TopicArn=config['sns_topic_arn'],
                         Subject=f"[COST ALERT] DynamoDB On-Demand Table Deleted: {table_name}",
                         Message=message,
                         MessageAttributes={
