@@ -535,16 +535,12 @@ resource "aws_organizations_policy" "cost_avoidance" {
           # No exemption - these services are blocked for everyone in sandbox accounts
         },
         # Additional expensive services (configurable)
+        # No exemption - these services are blocked for everyone in sandbox accounts
         {
           Sid      = "DenyAdditionalExpensiveServices"
           Effect   = "Deny"
           Action   = var.block_expensive_services
           Resource = ["*"]
-          Condition = {
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
-          }
         },
       ]
     )
