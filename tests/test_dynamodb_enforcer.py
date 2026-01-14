@@ -2,16 +2,14 @@
 Unit tests for DynamoDB Billing Mode Enforcer Lambda
 
 Run with: pytest tests/ -v
+
+Note: conftest.py sets AWS_DEFAULT_REGION and adds lambda to sys.path
 """
 import json
 import os
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-# Add lambda directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'modules', 'dynamodb-billing-enforcer', 'lambda'))
 
 
 # Sample CloudTrail event for DynamoDB CreateTable
