@@ -104,13 +104,9 @@ variable "sandbox_pool_ou_id" {
 }
 
 variable "budget_alert_emails" {
-  description = "Email addresses for budget alert notifications"
+  description = "Email addresses for budget alert notifications. Set via TF_VAR_budget_alert_emails from GitHub secret."
   type        = list(string)
-  default = [
-    "chris.Nesbitt-Smith@digital.cabinet-office.gov.uk",
-    "ndx-aaaaqa6ovbj5owumuw4jkzc44m@gds.slack.com",
-    "ndx@dsit.gov.uk"
-  ]
+  default     = [] # Provided via GitHub Actions secret SLACK_BUDGET_ALERT_EMAIL
 }
 
 variable "daily_budget_limit" {
