@@ -30,12 +30,6 @@ locals {
   allowed_ec2_instance_types = coalesce(var.allowed_ec2_instance_types, local.default_ec2_instance_types)
 }
 
-# =============================================================================
-# MODIFIED SCP: AWS Nuke Supported Services
-# =============================================================================
-# This SCP uses NotAction to ALLOW only services that AWS Nuke can clean up.
-# We ADD services here to make them available to sandbox users.
-
 resource "aws_organizations_policy" "nuke_supported_services" {
   name        = "InnovationSandboxAwsNukeSupportedServicesScp"
   description = "SCP to allow only services supported by AWS Nuke clean workflow. MANAGED BY TERRAFORM."
@@ -61,14 +55,12 @@ resource "aws_organizations_policy" "nuke_supported_services" {
   tags = var.tags
 }
 
-# Attach to sandbox OU
 resource "aws_organizations_policy_attachment" "nuke_supported_services" {
   policy_id = aws_organizations_policy.nuke_supported_services.id
   target_id = var.sandbox_ou_id
 }
 
 locals {
-  # Services supported by AWS Nuke + our additions (textract, secrets manager enhancements)
   nuke_supported_services = [
     "access-analyzer:*",
     "acm:*",
@@ -203,28 +195,20 @@ locals {
     "wafv2:*",
     "workspaces:*",
     "xray:*",
-    # =====================================================
-    # NDX ADDITIONS - Services added for sandbox scenarios
-    # =====================================================
-    # Textract - for document processing scenarios
-    # Includes both sync and async operations for multi-page document processing
-    # Sync operations (immediate response)
+    # Textract
     "textract:AnalyzeDocument",
     "textract:AnalyzeExpense",
     "textract:AnalyzeID",
     "textract:DetectDocumentText",
-    # Async operations (required for multi-page documents)
     "textract:StartDocumentAnalysis",
     "textract:StartDocumentTextDetection",
     "textract:StartExpenseAnalysis",
     "textract:StartLendingAnalysis",
-    # Get results of async operations
     "textract:GetDocumentAnalysis",
     "textract:GetDocumentTextDetection",
     "textract:GetExpenseAnalysis",
     "textract:GetLendingAnalysis",
     "textract:GetLendingAnalysisSummary",
-    # Adapter management (for custom models)
     "textract:GetAdapter",
     "textract:GetAdapterVersion",
     "textract:ListAdapters",
@@ -233,40 +217,21 @@ locals {
   ]
 }
 
-# =============================================================================
-# CONSOLIDATED: Region restrictions moved into RestrictionsScp
-# =============================================================================
-# The LimitRegionsScp has been consolidated into InnovationSandboxRestrictionsScp
-# to free up an SCP slot on the Sandbox Pool OU (AWS limit: 5 SCPs per OU).
-#
-# The region denial statement is now in the "DenyRegionAccess" Sid within
-# the restrictions policy.
-#
-# NOTE: The Bedrock inference profile exception was removed as it used an
-# invalid condition key. Cross-region Bedrock access should be handled via
-# IAM policies if needed.
+# Cost Avoidance SCPs - split into two due to AWS 5,120 char limit
 
-# =============================================================================
-# ENHANCED SCP: Cost Avoidance
-# =============================================================================
-# Comprehensive cost controls for sandbox environments
-# See variables.tf for all configurable limits
+resource "aws_organizations_policy" "cost_avoidance_compute" {
+  count = var.enable_cost_avoidance ? 1 : 0
 
-resource "aws_organizations_policy" "cost_avoidance" {
-  name        = "InnovationSandboxCostAvoidanceScp"
-  description = "Comprehensive cost controls: EC2, RDS, EBS, ElastiCache, Lambda, and expensive services. MANAGED BY TERRAFORM."
+  name        = "InnovationSandboxCostAvoidanceComputeScp"
+  description = "Cost controls for compute: EC2, EBS, RDS, ElastiCache, EKS, ASG. MANAGED BY TERRAFORM."
   type        = "SERVICE_CONTROL_POLICY"
 
   content = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      # =========================================================================
-      # EC2 CONTROLS
-      # =========================================================================
       [
-        # Allow only specified EC2 instance types
         {
-          Sid      = "DenyUnallowedEC2InstanceTypes"
+          Sid      = "DenyUnallowedEC2"
           Effect   = "Deny"
           Action   = ["ec2:RunInstances"]
           Resource = ["arn:aws:ec2:*:*:instance/*"]
@@ -274,14 +239,11 @@ resource "aws_organizations_policy" "cost_avoidance" {
             "ForAnyValue:StringNotLike" = {
               "ec2:InstanceType" = local.allowed_ec2_instance_types
             }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
-        # Explicitly deny GPU/accelerated/very large instances
         {
-          Sid      = "DenyGPUAndLargeInstances"
+          Sid      = "DenyExpensiveEC2"
           Effect   = "Deny"
           Action   = ["ec2:RunInstances"]
           Resource = ["arn:aws:ec2:*:*:instance/*"]
@@ -289,71 +251,47 @@ resource "aws_organizations_policy" "cost_avoidance" {
             "ForAnyValue:StringLike" = {
               "ec2:InstanceType" = var.denied_ec2_instance_types
             }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
       ],
 
-      # =========================================================================
-      # EBS CONTROLS
-      # =========================================================================
       [
-        # Deny expensive provisioned IOPS volume types (io1, io2)
         {
-          Sid      = "DenyExpensiveEBSVolumeTypes"
+          Sid      = "DenyExpensiveEBS"
           Effect   = "Deny"
           Action   = ["ec2:CreateVolume", "ec2:RunInstances"]
           Resource = ["arn:aws:ec2:*:*:volume/*"]
           Condition = {
-            "ForAnyValue:StringEquals" = {
-              "ec2:VolumeType" = var.denied_ebs_volume_types
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            "ForAnyValue:StringEquals" = { "ec2:VolumeType" = var.denied_ebs_volume_types }
+            ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
-        # Limit EBS volume size
         {
-          Sid      = "DenyLargeEBSVolumes"
+          Sid      = "DenyLargeEBS"
           Effect   = "Deny"
           Action   = ["ec2:CreateVolume", "ec2:RunInstances"]
           Resource = ["arn:aws:ec2:*:*:volume/*"]
           Condition = {
-            NumericGreaterThan = {
-              "ec2:VolumeSize" = tostring(var.max_ebs_volume_size_gb)
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            NumericGreaterThan = { "ec2:VolumeSize" = tostring(var.max_ebs_volume_size_gb) }
+            ArnNotLike         = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
       ],
 
-      # =========================================================================
-      # RDS CONTROLS
-      # =========================================================================
       [
-        # Allow only specified RDS instance classes
         {
-          Sid      = "DenyUnallowedRDSInstanceClasses"
+          Sid      = "DenyUnallowedRDS"
           Effect   = "Deny"
           Action   = ["rds:CreateDBInstance", "rds:CreateDBCluster", "rds:ModifyDBInstance", "rds:ModifyDBCluster"]
           Resource = ["*"]
           Condition = {
-            "ForAnyValue:StringNotLike" = {
-              "rds:DatabaseClass" = var.allowed_rds_instance_classes
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            "ForAnyValue:StringNotLike" = { "rds:DatabaseClass" = var.allowed_rds_instance_classes }
+            ArnNotLike                  = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
       ],
 
-      # Conditionally deny Multi-AZ (doubles RDS cost)
       var.allow_rds_multi_az ? [] : [
         {
           Sid      = "DenyRDSMultiAZ"
@@ -361,191 +299,119 @@ resource "aws_organizations_policy" "cost_avoidance" {
           Action   = ["rds:CreateDBInstance", "rds:ModifyDBInstance"]
           Resource = ["*"]
           Condition = {
-            Bool = {
-              "rds:MultiAz" = "true"
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            Bool       = { "rds:MultiAz" = "true" }
+            ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
       ],
 
-      # Block RDS Read Replicas (each replica = additional instance cost)
-      var.block_rds_read_replicas ? [
-        {
-          Sid      = "DenyRDSReadReplicas"
-          Effect   = "Deny"
-          Action   = ["rds:CreateDBInstanceReadReplica"]
-          Resource = ["*"]
-          Condition = {
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
-          }
-        },
-      ] : [],
-
-      # Block RDS Provisioned IOPS (very expensive - up to $0.10/IOPS-month)
-      var.block_rds_provisioned_iops ? [
-        {
-          Sid      = "DenyRDSProvisionedIOPS"
-          Effect   = "Deny"
-          Action   = ["rds:CreateDBInstance", "rds:ModifyDBInstance"]
-          Resource = ["*"]
-          Condition = {
-            NumericGreaterThan = {
-              "rds:Piops" = "0"
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
-          }
-        },
-      ] : [],
-
-      # =========================================================================
-      # ELASTICACHE CONTROLS
-      # =========================================================================
       [
-        # Allow only specified ElastiCache node types
         {
-          Sid      = "DenyUnallowedElastiCacheNodeTypes"
+          Sid      = "DenyUnallowedCache"
           Effect   = "Deny"
-          Action   = ["elasticache:CreateCacheCluster", "elasticache:CreateReplicationGroup", "elasticache:ModifyCacheCluster", "elasticache:ModifyReplicationGroup"]
+          Action   = ["elasticache:CreateCacheCluster", "elasticache:CreateReplicationGroup"]
           Resource = ["*"]
           Condition = {
-            "ForAnyValue:StringNotEqualsIgnoreCase" = {
-              "elasticache:CacheNodeType" = var.allowed_elasticache_node_types
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            "ForAnyValue:StringNotEqualsIgnoreCase" = { "elasticache:CacheNodeType" = var.allowed_elasticache_node_types }
+            ArnNotLike                              = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
       ],
 
-      # =========================================================================
-      # LAMBDA CONTROLS
-      # =========================================================================
-      var.block_lambda_provisioned_concurrency ? [
-        {
-          Sid      = "DenyLambdaProvisionedConcurrency"
-          Effect   = "Deny"
-          Action   = ["lambda:PutProvisionedConcurrencyConfig"]
-          Resource = ["*"]
-          Condition = {
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
-          }
-        },
-      ] : [],
-
-      # =========================================================================
-      # EKS CONTROLS
-      # =========================================================================
       [
         {
-          Sid      = "LimitEKSNodegroupSize"
+          Sid      = "LimitEKSSize"
           Effect   = "Deny"
           Action   = ["eks:CreateNodegroup", "eks:UpdateNodegroupConfig"]
           Resource = ["*"]
           Condition = {
-            NumericGreaterThan = {
-              "eks:maxSize" = tostring(var.max_eks_nodegroup_size)
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            NumericGreaterThan = { "eks:maxSize" = tostring(var.max_eks_nodegroup_size) }
+            ArnNotLike         = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
-      ],
-
-      # =========================================================================
-      # AUTO SCALING CONTROLS
-      # =========================================================================
-      [
-        # Limit Auto Scaling Group max size to prevent mass instance creation
         {
-          Sid      = "LimitAutoScalingGroupSize"
+          Sid      = "LimitASGSize"
           Effect   = "Deny"
           Action   = ["autoscaling:CreateAutoScalingGroup", "autoscaling:UpdateAutoScalingGroup"]
           Resource = ["*"]
           Condition = {
-            NumericGreaterThan = {
-              "autoscaling:MaxSize" = tostring(var.max_autoscaling_group_size)
-            }
-            ArnNotLike = {
-              "aws:PrincipalARN" = local.exempt_role_arns
-            }
+            NumericGreaterThan = { "autoscaling:MaxSize" = tostring(var.max_autoscaling_group_size) }
+            ArnNotLike         = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
       ],
 
-      # =========================================================================
-      # EXPENSIVE SERVICES - COMPLETE BLOCKS
-      # =========================================================================
-      [
-        # Original expensive services - NO EXEMPTIONS for safety
-        # These services should be denied for EVERYONE in sandbox accounts
+      var.block_lambda_provisioned_concurrency ? [
         {
-          Sid    = "DenyExpensiveManagedServices"
-          Effect = "Deny"
-          Action = [
-            # SageMaker - ML endpoints and training are expensive
-            "sagemaker:CreateEndpoint",
-            "sagemaker:CreateEndpointConfig",
-            "sagemaker:CreateTrainingJob",
-            "sagemaker:CreateHyperParameterTuningJob",
-            # EMR - big data clusters
-            "elasticmapreduce:RunJobFlow",
-            # GameLift - game server hosting
-            "gamelift:CreateFleet",
-            # Redshift - data warehouse clusters
-            "redshift:CreateCluster",
-          ]
-          Resource = ["*"]
-          # No exemption - these services are blocked for everyone in sandbox accounts
-        },
-        # Additional expensive services (configurable)
-        # No exemption - these services are blocked for everyone in sandbox accounts
-        {
-          Sid      = "DenyAdditionalExpensiveServices"
+          Sid      = "DenyLambdaPC"
           Effect   = "Deny"
-          Action   = var.block_expensive_services
+          Action   = ["lambda:PutProvisionedConcurrencyConfig"]
           Resource = ["*"]
+          Condition = { ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns } }
         },
-      ]
+      ] : []
     )
   })
 
   tags = var.tags
 }
 
-resource "aws_organizations_policy_attachment" "cost_avoidance" {
-  policy_id = aws_organizations_policy.cost_avoidance.id
+resource "aws_organizations_policy" "cost_avoidance_services" {
+  count = var.enable_cost_avoidance ? 1 : 0
+
+  name        = "InnovationSandboxCostAvoidanceServicesScp"
+  description = "Block expensive services: SageMaker, EMR, Redshift, Neptune, etc. MANAGED BY TERRAFORM."
+  type        = "SERVICE_CONTROL_POLICY"
+
+  content = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DenyExpensiveML"
+        Effect = "Deny"
+        Action = [
+          "sagemaker:CreateEndpoint",
+          "sagemaker:CreateEndpointConfig",
+          "sagemaker:CreateTrainingJob",
+          "sagemaker:CreateHyperParameterTuningJob",
+        ]
+        Resource = ["*"]
+      },
+      {
+        Sid    = "DenyExpensiveData"
+        Effect = "Deny"
+        Action = [
+          "elasticmapreduce:RunJobFlow",
+          "redshift:CreateCluster",
+          "gamelift:CreateFleet",
+        ]
+        Resource = ["*"]
+      },
+      {
+        Sid      = "DenyExpensiveServices"
+        Effect   = "Deny"
+        Action   = var.block_expensive_services
+        Resource = ["*"]
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_organizations_policy_attachment" "cost_avoidance_compute" {
+  count = var.enable_cost_avoidance ? 1 : 0
+
+  policy_id = aws_organizations_policy.cost_avoidance_compute[0].id
   target_id = coalesce(var.cost_avoidance_ou_id, var.sandbox_ou_id)
 }
 
-# =============================================================================
-# NEW SCP: IAM Workload Identity Protection
-# =============================================================================
-# Fills gaps NOT covered by existing InnovationSandboxProtectISBResourcesScp.
-#
-# EXISTING PROTECTION (InnovationSandboxProtectISBResourcesScp):
-# - Already denies ALL actions on InnovationSandbox-ndx*, AWSReservedSSO*,
-#   stacksets-exec-*, Isb-ndx* roles
-#
-# THIS SCP ADDS:
-# - Block creating roles with Admin*/admin* patterns (privilege escalation)
-# - Block iam:PassRole to privileged roles (prevent attaching to EC2/Lambda)
-# - Block sts:AssumeRole to privileged roles (prevent direct assumption)
-# - Block creating OrganizationAccountAccessRole, aws-service-role/*
-#
-# IMPORTANT: The Innovation Sandbox "SecurityAndIsolationRestrictions" SCP
-# currently denies iam:CreateUser. To allow user creation, that SCP must be
-# modified. Role creation (iam:CreateRole) is already allowed.
+resource "aws_organizations_policy_attachment" "cost_avoidance_services" {
+  count = var.enable_cost_avoidance ? 1 : 0
+
+  policy_id = aws_organizations_policy.cost_avoidance_services[0].id
+  target_id = coalesce(var.cost_avoidance_ou_id, var.sandbox_ou_id)
+}
 
 resource "aws_organizations_policy" "iam_workload_identity" {
   count = var.enable_iam_workload_identity ? 1 : 0
@@ -557,28 +423,17 @@ resource "aws_organizations_policy" "iam_workload_identity" {
   content = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # =======================================================================
-      # DENY: Creating roles/users with admin patterns
-      # =======================================================================
-      # NOT covered by existing SCPs - prevents naming roles to look privileged
       {
         Sid    = "DenyCreatingAdminRoles"
         Effect = "Deny"
-        Action = [
-          "iam:CreateRole",
-          "iam:CreateUser"
-        ]
+        Action = ["iam:CreateRole", "iam:CreateUser"]
         Resource = [
-          # Common admin role patterns - not covered by existing SCPs
           "arn:aws:iam::*:role/Admin*",
           "arn:aws:iam::*:role/admin*",
           "arn:aws:iam::*:user/Admin*",
           "arn:aws:iam::*:user/admin*",
-          # OrganizationAccountAccessRole - could be used to escalate
           "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          # AWS service-linked roles - users shouldn't create directly
           "arn:aws:iam::*:role/aws-service-role/*",
-          # AWSAccelerator roles - protect LZA infrastructure
           "arn:aws:iam::*:role/AWSAccelerator*",
           "arn:aws:iam::*:role/cdk-accel*"
         ]
@@ -588,10 +443,6 @@ resource "aws_organizations_policy" "iam_workload_identity" {
           }
         }
       },
-      # =======================================================================
-      # DENY: Modifying admin-pattern roles
-      # =======================================================================
-      # Protect any Admin* roles that exist from tampering
       {
         Sid    = "DenyModifyingAdminRoles"
         Effect = "Deny"
@@ -627,19 +478,11 @@ resource "aws_organizations_policy" "iam_workload_identity" {
           }
         }
       },
-      # =======================================================================
-      # DENY: Passing privileged roles to services
-      # =======================================================================
-      # NOT covered by existing SCPs - prevent attaching privileged roles
-      # to EC2 instances, Lambda functions, etc.
       {
         Sid    = "DenyPassingPrivilegedRoles"
         Effect = "Deny"
-        Action = [
-          "iam:PassRole"
-        ]
+        Action = ["iam:PassRole"]
         Resource = [
-          # All privileged role patterns
           "arn:aws:iam::*:role/InnovationSandbox*",
           "arn:aws:iam::*:role/aws-reserved/*",
           "arn:aws:iam::*:role/stacksets-exec-*",
@@ -658,17 +501,10 @@ resource "aws_organizations_policy" "iam_workload_identity" {
           }
         }
       },
-      # =======================================================================
-      # DENY: Assuming privileged roles
-      # =======================================================================
-      # NOT covered by existing SCPs - prevent users from assuming
-      # privileged roles via sts:AssumeRole
       {
         Sid    = "DenyAssumingPrivilegedRoles"
         Effect = "Deny"
-        Action = [
-          "sts:AssumeRole"
-        ]
+        Action = ["sts:AssumeRole"]
         Resource = [
           "arn:aws:iam::*:role/InnovationSandbox*",
           "arn:aws:iam::*:role/aws-reserved/*",
@@ -700,16 +536,6 @@ resource "aws_organizations_policy_attachment" "iam_workload_identity" {
   target_id = var.sandbox_ou_id
 }
 
-# =============================================================================
-# IMPORTED SCP: Innovation Sandbox Restrictions
-# =============================================================================
-# This SCP was originally created by Innovation Sandbox CDK/CloudFormation.
-# We import it to Terraform to manage modifications like removing iam:CreateUser
-# from the deny list to allow workload identity.
-#
-# IMPORT COMMAND:
-# terraform import 'module.scp_manager.aws_organizations_policy.restrictions' p-6tw8eixp
-
 resource "aws_organizations_policy" "restrictions" {
   name        = "InnovationSandboxRestrictionsScp"
   description = "SCP for security, isolation, and region restrictions. MANAGED BY TERRAFORM."
@@ -718,9 +544,6 @@ resource "aws_organizations_policy" "restrictions" {
   content = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # =======================================================================
-      # REGION RESTRICTIONS (consolidated from LimitRegionsScp)
-      # =======================================================================
       {
         Sid      = "DenyRegionAccess"
         Effect   = "Deny"
@@ -743,9 +566,6 @@ resource "aws_organizations_policy" "restrictions" {
           "aws-portal:ViewAccount",
           "cloudtrail:CreateServiceLinkedChannel",
           "cloudtrail:UpdateServiceLinkedChannel",
-          # iam:CreateUser - REMOVED to allow workload identity
-          # Users can now create IAM users, but InnovationSandboxIamWorkloadIdentityScp
-          # prevents creating users with privileged naming patterns
           "networkmanager:AssociateTransitGatewayConnectPeer",
           "networkmanager:DisassociateTransitGatewayConnectPeer",
           "networkmanager:StartOrganizationServiceAccessUpdate",

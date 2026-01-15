@@ -45,45 +45,16 @@ variable "tags" {
   default     = {}
 }
 
-# =============================================================================
-# ENHANCED COST AVOIDANCE VARIABLES
-# =============================================================================
-
 variable "denied_ec2_instance_types" {
-  description = "EC2 instance type patterns to explicitly deny (GPU, accelerated computing, very large)"
+  description = "EC2 instance types to deny (GPU, accelerated, very large). Uses wildcards for SCP size."
   type        = list(string)
-  default = [
-    # GPU instances - extremely expensive ($3-32+/hour)
-    "p2.*", "p3.*", "p4d.*", "p4de.*", "p5.*",
-    # Graphics instances
-    "g3.*", "g3s.*", "g4dn.*", "g4ad.*", "g5.*", "g5g.*", "g6.*",
-    # Inference/ML accelerators
-    "inf1.*", "inf2.*",
-    # Training instances
-    "trn1.*", "trn1n.*", "trn2.*",
-    # Deep learning
-    "dl1.*", "dl2q.*",
-    # High memory (6TB-24TB RAM)
-    "u-6tb1.*", "u-9tb1.*", "u-12tb1.*", "u-18tb1.*", "u-24tb1.*",
-    # Very large metal instances
-    "*.metal", "*.metal-24xl", "*.metal-48xl",
-    # X-large instance families (12xlarge and above)
-    "*.12xlarge", "*.16xlarge", "*.18xlarge", "*.24xlarge", "*.32xlarge", "*.48xlarge"
-  ]
+  default     = ["p*", "g*", "inf*", "trn*", "dl*", "u-*", "*.metal*", "*.12xlarge", "*.16xlarge", "*.18xlarge", "*.24xlarge", "*.32xlarge", "*.48xlarge"]
 }
 
 variable "allowed_rds_instance_classes" {
-  description = "RDS DB instance classes allowed (uses db.* prefix)"
+  description = "RDS instance classes allowed. Uses wildcards for SCP size."
   type        = list(string)
-  default = [
-    # Burstable (good for dev/test)
-    "db.t3.micro", "db.t3.small", "db.t3.medium", "db.t3.large",
-    "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
-    # General purpose (reasonable production)
-    "db.m5.large", "db.m5.xlarge",
-    "db.m6g.large", "db.m6g.xlarge",
-    "db.m6i.large", "db.m6i.xlarge"
-  ]
+  default     = ["db.t3.*", "db.t4g.*", "db.m5.large", "db.m5.xlarge", "db.m6g.large", "db.m6g.xlarge", "db.m6i.large", "db.m6i.xlarge"]
 }
 
 variable "allow_rds_multi_az" {
@@ -92,16 +63,10 @@ variable "allow_rds_multi_az" {
   default     = false
 }
 
-# NOTE: max_rds_storage_gb removed - rds:StorageSize condition key has limited support
-
 variable "allowed_elasticache_node_types" {
-  description = "ElastiCache node types allowed"
+  description = "ElastiCache node types allowed. Uses wildcards for SCP size."
   type        = list(string)
-  default = [
-    "cache.t3.micro", "cache.t3.small", "cache.t3.medium",
-    "cache.t4g.micro", "cache.t4g.small", "cache.t4g.medium",
-    "cache.m5.large", "cache.m6g.large"
-  ]
+  default     = ["cache.t3.*", "cache.t4g.*", "cache.m5.large", "cache.m6g.large"]
 }
 
 variable "max_ebs_volume_size_gb" {
@@ -123,51 +88,16 @@ variable "block_lambda_provisioned_concurrency" {
 }
 
 variable "block_expensive_services" {
-  description = "List of expensive service actions to completely block"
+  description = "Expensive service actions to block. Uses wildcards for SCP size."
   type        = list(string)
   default = [
-    # MSK (Kafka) - very expensive ($0.21-2.88/hour per broker)
-    "kafka:CreateCluster",
-    "kafka:CreateClusterV2",
-    # FSx - expensive managed file systems
-    "fsx:CreateFileSystem",
-    # Kinesis Data Streams - per-shard pricing adds up
-    "kinesis:CreateStream",
-    # QuickSight - per-user pricing
-    "quicksight:CreateUser",
-    "quicksight:RegisterUser",
-    # Dedicated hosts
-    "ec2:AllocateDedicatedHosts",
-    # Reserved capacity (commitment)
-    "ec2:PurchaseReservedInstancesOffering",
-    "rds:PurchaseReservedDBInstancesOffering",
-    "elasticache:PurchaseReservedCacheNodesOffering",
-    # Savings plans (commitment)
-    "savingsplans:CreateSavingsPlan",
-    # Neptune - graph database ($0.348-8.35/hr)
-    "neptune:CreateDBCluster",
-    "neptune:CreateDBInstance",
-    # DocumentDB - MongoDB compatible ($0.26-8.42/hr)
-    "docdb:CreateDBCluster",
-    "docdb:CreateDBInstance",
-    # MemoryDB - Redis compatible (expensive)
-    "memorydb:CreateCluster",
-    # OpenSearch - can be very expensive
-    "es:CreateDomain",
-    "es:CreateElasticsearchDomain",
-    "opensearch:CreateDomain",
-    # AWS Batch - can spin up many instances
-    "batch:CreateComputeEnvironment",
-    # Glue - DPU hours add up quickly
-    "glue:CreateJob",
-    "glue:CreateDevEndpoint",
-    # EFS Provisioned Throughput - expensive
-    "elasticfilesystem:CreateFileSystem",
-    # Timestream - expensive time series DB
-    "timestream:CreateDatabase",
-    "timestream:CreateTable",
-    # QLDB - ledger database
-    "qldb:CreateLedger"
+    "kafka:Create*", "fsx:CreateFileSystem", "kinesis:CreateStream", "quicksight:*User",
+    "ec2:AllocateDedicatedHosts", "ec2:PurchaseReserved*", "rds:PurchaseReserved*",
+    "elasticache:PurchaseReserved*", "savingsplans:CreateSavingsPlan",
+    "neptune:Create*", "docdb:Create*", "memorydb:CreateCluster",
+    "es:Create*", "opensearch:Create*",
+    "batch:CreateComputeEnvironment", "glue:CreateJob", "glue:CreateDevEndpoint",
+    "elasticfilesystem:CreateFileSystem", "timestream:Create*", "qldb:CreateLedger"
   ]
 }
 
@@ -195,8 +125,6 @@ variable "max_eks_nodegroup_size" {
   default     = 5
 }
 
-# NOTE: max_ecs_task_count removed - no reliable SCP condition key for ECS desired count
-
 variable "enable_cost_avoidance" {
   description = "Whether to create cost avoidance SCP"
   type        = bool
@@ -204,22 +132,7 @@ variable "enable_cost_avoidance" {
 }
 
 variable "enable_iam_workload_identity" {
-  description = <<-EOT
-    Enable IAM Workload Identity SCP that allows users to create IAM roles
-    for workloads (EC2 instance roles, Lambda execution roles) while preventing
-    privilege escalation.
-
-    IMPORTANT: This SCP works alongside the existing Innovation Sandbox SCPs.
-    The Innovation Sandbox "SecurityAndIsolationRestrictions" SCP must be
-    modified to REMOVE iam:CreateRole and iam:CreateUser from its deny list
-    for this to take effect.
-
-    Security model:
-    - Users CAN create roles/users (needed for EC2, Lambda, etc.)
-    - Users CANNOT create roles matching exempt patterns (prevents SCP bypass)
-    - Users CANNOT modify/delete exempt roles (protects admin infrastructure)
-    - Any role users create is still subject to ALL SCPs
-  EOT
+  description = "Enable IAM Workload Identity SCP for workload roles while preventing privilege escalation"
   type        = bool
   default     = false
 }
