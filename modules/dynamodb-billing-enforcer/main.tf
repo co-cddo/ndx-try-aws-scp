@@ -1,18 +1,4 @@
-# =============================================================================
-# DYNAMODB BILLING MODE ENFORCER
-# =============================================================================
-# GAP FIX: DynamoDB On-Demand mode bypasses WCU/RCU service quotas.
-#
-# PROBLEM:
-# - Service Quotas only limit PROVISIONED capacity (WCU/RCU)
-# - On-Demand mode has NO capacity quotas - it's purely pay-per-request
-# - Attacker can create On-Demand tables and generate unlimited costs
-# - There is NO SCP condition key for dynamodb:BillingMode
-#
-# SOLUTION:
-# EventBridge rule detects CreateTable/UpdateTable events and triggers
-# Lambda function that DELETES On-Demand tables and broadcasts the event.
-# =============================================================================
+# DynamoDB Billing Mode Enforcer - deletes On-Demand tables (bypass WCU/RCU quotas)
 
 terraform {
   required_version = ">= 1.5"
@@ -28,15 +14,10 @@ terraform {
   }
 }
 
-# -----------------------------------------------------------------------------
-# LAMBDA FUNCTION FOR DYNAMODB ENFORCEMENT
-# -----------------------------------------------------------------------------
-
 data "archive_file" "enforcer_lambda" {
   type        = "zip"
   output_path = "${path.module}/.lambda.zip"
   source_dir  = "${path.module}/lambda"
-  # Excludes ensure clean ZIP file
   excludes    = ["__pycache__", "*.pyc", ".DS_Store"]
 }
 
@@ -123,10 +104,6 @@ resource "aws_lambda_function" "enforcer" {
   tags = var.tags
 }
 
-# -----------------------------------------------------------------------------
-# EVENTBRIDGE RULE TO DETECT DYNAMODB TABLE OPERATIONS
-# -----------------------------------------------------------------------------
-
 resource "aws_cloudwatch_event_rule" "dynamodb_table_changes" {
   name        = "${var.namespace}-dynamodb-billing-enforcer"
   description = "Detects DynamoDB CreateTable and UpdateTable events for billing mode enforcement"
@@ -156,10 +133,6 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.dynamodb_table_changes.arn
 }
-
-# -----------------------------------------------------------------------------
-# CLOUDWATCH LOG GROUP (with controlled retention)
-# -----------------------------------------------------------------------------
 
 resource "aws_cloudwatch_log_group" "enforcer_lambda" {
   name              = "/aws/lambda/${aws_lambda_function.enforcer.function_name}"
