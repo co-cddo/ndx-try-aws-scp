@@ -8,14 +8,7 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state
-  # backend "s3" {
-  #   bucket         = "ndx-terraform-state"
-  #   key            = "scp-overrides/terraform.tfstate"
-  #   region         = "eu-west-2"
-  #   encrypt        = true
-  #   dynamodb_table = "ndx-terraform-locks"
-  # }
+  # Backend configured in backend.tf
 }
 
 provider "aws" {
