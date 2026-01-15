@@ -186,8 +186,17 @@ module "budgets" {
 # =============================================================================
 # COST ANOMALY DETECTION (ML-BASED - FREE SERVICE)
 # =============================================================================
-# Layer 4 of defense in depth - uses machine learning to detect unusual
-# spending patterns. This is a FREE service.
+# Auto-discover existing DIMENSIONAL monitors to avoid AWS 10-monitor limit.
+
+data "external" "existing_anomaly_monitors" {
+  count   = var.enable_cost_anomaly_detection ? 1 : 0
+  program = ["bash", "-c", "aws ce get-anomaly-monitors --query '{arns_json: to_string(AnomalyMonitors[?MonitorType==`DIMENSIONAL`].MonitorArn)}' --output json 2>/dev/null || echo '{\"arns_json\":\"[]\"}'"]
+}
+
+locals {
+  existing_monitor_arns = var.enable_cost_anomaly_detection ? try(jsondecode(data.external.existing_anomaly_monitors[0].result.arns_json), []) : []
+  has_existing_monitors = length(local.existing_monitor_arns) > 0
+}
 
 module "cost_anomaly_detection" {
   source = "../../modules/cost-anomaly-detection"
@@ -195,20 +204,17 @@ module "cost_anomaly_detection" {
 
   namespace = var.namespace
 
-  # Use existing monitors to avoid AWS 10 DIMENSIONAL monitor limit
-  create_monitors         = var.cost_anomaly_create_monitors
-  existing_monitor_arns   = var.cost_anomaly_existing_monitor_arns
-  monitor_linked_accounts = var.cost_anomaly_create_monitors
+  # Auto-detect: use existing monitors if found, otherwise create new ones
+  create_monitors         = !local.has_existing_monitors
+  existing_monitor_arns   = local.existing_monitor_arns
+  monitor_linked_accounts = !local.has_existing_monitors
 
-  # SNS for alerts
   create_sns_topic = true
   alert_emails     = var.budget_alert_emails
 
-  # Alert configuration
   alert_frequency        = "DAILY"
   alert_threshold_amount = 10
 
-  # High-priority immediate alerts for large anomalies
   enable_high_priority_alerts    = true
   high_priority_threshold_amount = var.daily_budget_limit
 
