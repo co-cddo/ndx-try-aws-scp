@@ -73,12 +73,10 @@ module "service_quotas" {
   enable_ec2_quotas         = var.enable_service_quotas
   ec2_on_demand_vcpu_limit  = var.ec2_vcpu_quota
   ec2_spot_vcpu_limit       = var.ec2_vcpu_quota
-  ec2_gpu_vcpu_limit        = 4 # Allow limited GPU usage
-  ec2_p_instance_vcpu_limit = 0 # Blocked - also in SCP
-  ec2_inf_vcpu_limit        = 0 # Blocked - also in SCP
-  ec2_dl_vcpu_limit         = 0 # Blocked - also in SCP
-  ec2_trn_vcpu_limit        = 0 # Blocked - also in SCP
-  ec2_high_mem_vcpu_limit   = 0 # Blocked - also in SCP
+  ec2_gpu_vcpu_limit        = 4
+  ec2_p_instance_vcpu_limit = 0
+  ec2_dl_vcpu_limit         = 0
+  ec2_high_mem_vcpu_limit   = 0
 
   # EBS quotas - 2 TiB total, ~$6/day
   enable_ebs_quotas   = var.enable_service_quotas
@@ -102,38 +100,11 @@ module "service_quotas" {
   enable_rds_quotas            = var.enable_service_quotas
   rds_instance_limit           = var.rds_instance_quota
   rds_total_storage_gb         = var.rds_storage_quota_gb
-  rds_read_replicas_per_source = 0 # Blocked - also in SCP
-
-  # ElastiCache quotas - 10 nodes max
-  enable_elasticache_quotas = var.enable_service_quotas
-  elasticache_node_limit    = 10
+  rds_read_replicas_per_source = 0
 
   # EKS quotas - 2 clusters max
   enable_eks_quotas = var.enable_service_quotas
   eks_cluster_limit = 2
-
-  # Load balancer quotas
-  enable_elb_quotas = var.enable_service_quotas
-  alb_limit         = 5
-  nlb_limit         = 5
-
-  # DynamoDB quotas - CRITICAL: limit capacity to prevent cost explosion
-  enable_dynamodb_quotas        = var.enable_service_quotas
-  dynamodb_table_limit          = 50
-  dynamodb_read_capacity_limit  = 1000 # ~$3/day max (default 80,000 = $250/day!)
-  dynamodb_write_capacity_limit = 1000 # ~$16/day max (default 80,000 = $1,248/day!)
-
-  # Kinesis - 0 shards (blocked in SCP)
-  enable_kinesis_quotas = var.enable_service_quotas
-  kinesis_shard_limit   = 0
-
-  # CloudWatch - reasonable log group limit
-  enable_cloudwatch_quotas   = var.enable_service_quotas
-  cloudwatch_log_group_limit = 50
-
-  # Bedrock quotas - limit token usage to control AI costs
-  enable_bedrock_quotas     = var.enable_service_quotas
-  bedrock_tokens_per_minute = 5000 # ~$72/day max at avg pricing
 
   # Enable template association for automatic application
   enable_template_association = var.enable_service_quotas
@@ -224,20 +195,22 @@ module "cost_anomaly_detection" {
 
   namespace = var.namespace
 
-  # Use existing budget alert emails for consistency
+  # Use existing monitors to avoid AWS 10 DIMENSIONAL monitor limit
+  create_monitors         = var.cost_anomaly_create_monitors
+  existing_monitor_arns   = var.cost_anomaly_existing_monitor_arns
+  monitor_linked_accounts = var.cost_anomaly_create_monitors
+
+  # SNS for alerts
   create_sns_topic = true
   alert_emails     = var.budget_alert_emails
 
-  # Monitor linked sandbox accounts
-  monitor_linked_accounts = true
-
-  # Alert configuration - tuned for 24-hour sandbox leases
+  # Alert configuration
   alert_frequency        = "DAILY"
-  alert_threshold_amount = 10 # Alert on anomalies >= $10
+  alert_threshold_amount = 10
 
   # High-priority immediate alerts for large anomalies
   enable_high_priority_alerts    = true
-  high_priority_threshold_amount = var.daily_budget_limit # Alert immediately if anomaly >= daily budget
+  high_priority_threshold_amount = var.daily_budget_limit
 
   tags = {
     Component = "Cost-Anomaly-Detection"

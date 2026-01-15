@@ -179,6 +179,18 @@ variable "enable_cost_anomaly_detection" {
   default     = true
 }
 
+variable "cost_anomaly_create_monitors" {
+  description = "Create new anomaly monitors. Set false if account has 10 monitors (AWS limit)."
+  type        = bool
+  default     = false
+}
+
+variable "cost_anomaly_existing_monitor_arns" {
+  description = "Existing Cost Anomaly Monitor ARNs to use when create_monitors=false"
+  type        = list(string)
+  default     = []
+}
+
 # =============================================================================
 # DYNAMODB BILLING ENFORCER (GAP FIX)
 # =============================================================================
