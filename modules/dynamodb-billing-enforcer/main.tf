@@ -16,7 +16,7 @@ terraform {
 
 data "archive_file" "enforcer_lambda" {
   type        = "zip"
-  output_path = "${path.module}/.lambda.zip"
+  output_path = "/tmp/dynamodb-billing-enforcer-lambda.zip"
   source_dir  = "${path.module}/lambda"
   excludes    = ["__pycache__", "*.pyc", ".DS_Store"]
 }
