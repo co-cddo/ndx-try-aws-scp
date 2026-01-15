@@ -522,43 +522,6 @@ variable "bedrock_tokens_per_minute" {
   default     = 10000
 }
 
-# GAP FIX: Additional Bedrock model family quotas
-variable "bedrock_titan_tokens_per_minute" {
-  description = <<-EOT
-    Maximum tokens per minute for Amazon Titan models.
-    Without this, attackers could bypass Claude quotas by using Titan.
-  EOT
-  type        = number
-  default     = 5000 # Lower than Claude to limit alternative attack vectors
-}
-
-variable "bedrock_stability_requests_per_minute" {
-  description = <<-EOT
-    Maximum requests per minute for Stability AI image generation.
-    Image generation: ~$0.04-0.08 per image
-    5 req/min × 60 × 24 = 7,200 images/day × $0.08 = ~$576/day max
-  EOT
-  type        = number
-  default     = 5 # Very restrictive - image gen is expensive
-}
-
-variable "bedrock_cohere_tokens_per_minute" {
-  description = <<-EOT
-    Maximum tokens per minute for Cohere models.
-    Without this, attackers could bypass Claude quotas.
-  EOT
-  type        = number
-  default     = 5000
-}
-
-variable "bedrock_meta_tokens_per_minute" {
-  description = <<-EOT
-    Maximum tokens per minute for Meta Llama models.
-    Without this, attackers could bypass Claude quotas.
-  EOT
-  type        = number
-  default     = 5000
-}
 
 # -----------------------------------------------------------------------------
 # API GATEWAY QUOTAS
@@ -586,11 +549,10 @@ variable "apigateway_throttle_rate_limit" {
   default     = 100 # 100 req/sec = ~$30/day max
 }
 
-variable "apigateway_throttle_burst_limit" {
-  description = "Maximum burst rate for API Gateway"
-  type        = number
-  default     = 200
-}
+# REMOVED: apigateway_throttle_burst_limit
+# The API Gateway throttle burst quota (L-CDF5615A) is NOT adjustable via
+# Service Quota Templates. AWS returns IllegalArgumentException.
+# To change burst limits, open an AWS Support case.
 
 # -----------------------------------------------------------------------------
 # TAGS
