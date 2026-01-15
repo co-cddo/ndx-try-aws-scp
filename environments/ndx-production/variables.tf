@@ -174,7 +174,7 @@ variable "enable_budget_automated_actions" {
 # =============================================================================
 
 variable "enable_cost_anomaly_detection" {
-  description = "Enable AWS Cost Anomaly Detection (FREE service using ML to detect unusual spending)"
+  description = "Enable AWS Cost Anomaly Detection (FREE service). Auto-discovers existing monitors."
   type        = bool
   default     = true
 }

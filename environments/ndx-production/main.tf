@@ -8,14 +8,6 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state
-  # backend "s3" {
-  #   bucket         = "ndx-terraform-state"
-  #   key            = "scp-overrides/terraform.tfstate"
-  #   region         = "eu-west-2"
-  #   encrypt        = true
-  #   dynamodb_table = "ndx-terraform-locks"
-  # }
 }
 
 provider "aws" {
@@ -70,70 +62,29 @@ module "service_quotas" {
   regions = var.managed_regions
 
   # EC2 quotas - 64 vCPUs allows reasonable compute, ~$77/day max
-  enable_ec2_quotas         = var.enable_service_quotas
-  ec2_on_demand_vcpu_limit  = var.ec2_vcpu_quota
-  ec2_spot_vcpu_limit       = var.ec2_vcpu_quota
-  ec2_gpu_vcpu_limit        = 4 # Allow limited GPU usage
-  ec2_p_instance_vcpu_limit = 0 # Blocked - also in SCP
-  ec2_inf_vcpu_limit        = 0 # Blocked - also in SCP
-  ec2_dl_vcpu_limit         = 0 # Blocked - also in SCP
-  ec2_trn_vcpu_limit        = 0 # Blocked - also in SCP
-  ec2_high_mem_vcpu_limit   = 0 # Blocked - also in SCP
+  # GPU/accelerator quotas disabled (enable_ec2_gpu_quotas=false) - SCP already blocks these
+  enable_ec2_quotas        = var.enable_service_quotas
+  ec2_on_demand_vcpu_limit = var.ec2_vcpu_quota
+  ec2_spot_vcpu_limit      = var.ec2_vcpu_quota
 
-  # EBS quotas - 2 TiB total, ~$6/day
-  enable_ebs_quotas   = var.enable_service_quotas
-  ebs_gp3_storage_tib = var.ebs_storage_quota_tib
-  ebs_gp2_storage_tib = var.ebs_storage_quota_tib
-  ebs_io1_iops_limit  = 0  # Blocked - also in SCP
-  ebs_io2_iops_limit  = 0  # Blocked - also in SCP
-  ebs_snapshot_limit  = 20 # Reduced - 100 excessive for 24hr lease
+  # EBS quotas DISABLED - uses 5 template slots, SCP already limits volume types/sizes
+  # enable_ebs_quotas defaults to false in module
 
   # Lambda quotas - 100 concurrent executions
   enable_lambda_quotas         = var.enable_service_quotas
   lambda_concurrent_executions = var.lambda_concurrency_quota
 
-  # VPC quotas - reasonable limits for experimentation
-  enable_vpc_quotas        = var.enable_service_quotas
-  vpc_limit                = 5
-  nat_gateway_per_az_limit = 2
-  elastic_ip_limit         = 5
+  # VPC quotas DISABLED - AWS limits templates to 10 total, prioritizing EC2/Lambda/EKS
+  # VPCs are free, NAT gateways have small hourly cost ($1.08/day)
+  enable_vpc_quotas = false
 
-  # RDS quotas - 5 instances, 500GB total
-  enable_rds_quotas            = var.enable_service_quotas
-  rds_instance_limit           = var.rds_instance_quota
-  rds_total_storage_gb         = var.rds_storage_quota_gb
-  rds_read_replicas_per_source = 0 # Blocked - also in SCP
-
-  # ElastiCache quotas - 10 nodes max
-  enable_elasticache_quotas = var.enable_service_quotas
-  elasticache_node_limit    = 10
+  # RDS quotas DISABLED - AWS limits templates to 10 total, prioritizing EC2/Lambda/EKS
+  # RDS controlled via instance type restrictions in SCP
+  enable_rds_quotas = false
 
   # EKS quotas - 2 clusters max
   enable_eks_quotas = var.enable_service_quotas
   eks_cluster_limit = 2
-
-  # Load balancer quotas
-  enable_elb_quotas = var.enable_service_quotas
-  alb_limit         = 5
-  nlb_limit         = 5
-
-  # DynamoDB quotas - CRITICAL: limit capacity to prevent cost explosion
-  enable_dynamodb_quotas        = var.enable_service_quotas
-  dynamodb_table_limit          = 50
-  dynamodb_read_capacity_limit  = 1000 # ~$3/day max (default 80,000 = $250/day!)
-  dynamodb_write_capacity_limit = 1000 # ~$16/day max (default 80,000 = $1,248/day!)
-
-  # Kinesis - 0 shards (blocked in SCP)
-  enable_kinesis_quotas = var.enable_service_quotas
-  kinesis_shard_limit   = 0
-
-  # CloudWatch - reasonable log group limit
-  enable_cloudwatch_quotas   = var.enable_service_quotas
-  cloudwatch_log_group_limit = 50
-
-  # Bedrock quotas - limit token usage to control AI costs
-  enable_bedrock_quotas     = var.enable_service_quotas
-  bedrock_tokens_per_minute = 5000 # ~$72/day max at avg pricing
 
   # Enable template association for automatic application
   enable_template_association = var.enable_service_quotas
@@ -215,8 +166,17 @@ module "budgets" {
 # =============================================================================
 # COST ANOMALY DETECTION (ML-BASED - FREE SERVICE)
 # =============================================================================
-# Layer 4 of defense in depth - uses machine learning to detect unusual
-# spending patterns. This is a FREE service.
+# Auto-discover existing DIMENSIONAL monitors to avoid AWS 10-monitor limit.
+
+data "external" "existing_anomaly_monitors" {
+  count   = var.enable_cost_anomaly_detection ? 1 : 0
+  program = ["bash", "-c", "aws ce get-anomaly-monitors --query '{arns_json: to_string(AnomalyMonitors[?MonitorType==`DIMENSIONAL`].MonitorArn)}' --output json 2>/dev/null || echo '{\"arns_json\":\"[]\"}'"]
+}
+
+locals {
+  existing_monitor_arns = var.enable_cost_anomaly_detection ? try(jsondecode(data.external.existing_anomaly_monitors[0].result.arns_json), []) : []
+  has_existing_monitors = length(local.existing_monitor_arns) > 0
+}
 
 module "cost_anomaly_detection" {
   source = "../../modules/cost-anomaly-detection"
@@ -224,20 +184,20 @@ module "cost_anomaly_detection" {
 
   namespace = var.namespace
 
-  # Use existing budget alert emails for consistency
+  # Auto-detect: use existing monitors if found, otherwise create new ones
+  create_monitors         = !local.has_existing_monitors
+  existing_monitor_arns   = local.existing_monitor_arns
+  monitor_linked_accounts = !local.has_existing_monitors
+
   create_sns_topic = true
   alert_emails     = var.budget_alert_emails
 
-  # Monitor linked sandbox accounts
-  monitor_linked_accounts = true
+  # IMMEDIATE required for SNS subscribers (DAILY/WEEKLY only support EMAIL)
+  alert_frequency        = "IMMEDIATE"
+  alert_threshold_amount = 10
 
-  # Alert configuration - tuned for 24-hour sandbox leases
-  alert_frequency        = "DAILY"
-  alert_threshold_amount = 10 # Alert on anomalies >= $10
-
-  # High-priority immediate alerts for large anomalies
   enable_high_priority_alerts    = true
-  high_priority_threshold_amount = var.daily_budget_limit # Alert immediately if anomaly >= daily budget
+  high_priority_threshold_amount = var.daily_budget_limit
 
   tags = {
     Component = "Cost-Anomaly-Detection"
