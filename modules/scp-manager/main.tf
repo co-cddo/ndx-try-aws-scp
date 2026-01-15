@@ -30,12 +30,6 @@ locals {
   allowed_ec2_instance_types = coalesce(var.allowed_ec2_instance_types, local.default_ec2_instance_types)
 }
 
-# =============================================================================
-# MODIFIED SCP: AWS Nuke Supported Services
-# =============================================================================
-# This SCP uses NotAction to ALLOW only services that AWS Nuke can clean up.
-# We ADD services here to make them available to sandbox users.
-
 resource "aws_organizations_policy" "nuke_supported_services" {
   name        = "InnovationSandboxAwsNukeSupportedServicesScp"
   description = "SCP to allow only services supported by AWS Nuke clean workflow. MANAGED BY TERRAFORM."
@@ -61,14 +55,12 @@ resource "aws_organizations_policy" "nuke_supported_services" {
   tags = var.tags
 }
 
-# Attach to sandbox OU
 resource "aws_organizations_policy_attachment" "nuke_supported_services" {
   policy_id = aws_organizations_policy.nuke_supported_services.id
   target_id = var.sandbox_ou_id
 }
 
 locals {
-  # Services supported by AWS Nuke + our additions (textract, secrets manager enhancements)
   nuke_supported_services = [
     "access-analyzer:*",
     "acm:*",
@@ -203,28 +195,20 @@ locals {
     "wafv2:*",
     "workspaces:*",
     "xray:*",
-    # =====================================================
-    # NDX ADDITIONS - Services added for sandbox scenarios
-    # =====================================================
-    # Textract - for document processing scenarios
-    # Includes both sync and async operations for multi-page document processing
-    # Sync operations (immediate response)
+    # Textract
     "textract:AnalyzeDocument",
     "textract:AnalyzeExpense",
     "textract:AnalyzeID",
     "textract:DetectDocumentText",
-    # Async operations (required for multi-page documents)
     "textract:StartDocumentAnalysis",
     "textract:StartDocumentTextDetection",
     "textract:StartExpenseAnalysis",
     "textract:StartLendingAnalysis",
-    # Get results of async operations
     "textract:GetDocumentAnalysis",
     "textract:GetDocumentTextDetection",
     "textract:GetExpenseAnalysis",
     "textract:GetLendingAnalysis",
     "textract:GetLendingAnalysisSummary",
-    # Adapter management (for custom models)
     "textract:GetAdapter",
     "textract:GetAdapterVersion",
     "textract:ListAdapters",
@@ -233,29 +217,7 @@ locals {
   ]
 }
 
-# =============================================================================
-# CONSOLIDATED: Region restrictions moved into RestrictionsScp
-# =============================================================================
-# The LimitRegionsScp has been consolidated into InnovationSandboxRestrictionsScp
-# to free up an SCP slot on the Sandbox Pool OU (AWS limit: 5 SCPs per OU).
-#
-# The region denial statement is now in the "DenyRegionAccess" Sid within
-# the restrictions policy.
-#
-# NOTE: The Bedrock inference profile exception was removed as it used an
-# invalid condition key. Cross-region Bedrock access should be handled via
-# IAM policies if needed.
-
-# =============================================================================
-# SPLIT SCP: Cost Avoidance - Compute Controls
-# =============================================================================
-# Comprehensive cost controls for sandbox environments - COMPUTE RESOURCES
-#
-# This SCP is SPLIT into two policies due to AWS 5,120 character limit:
-# - cost_avoidance_compute: EC2, EBS, RDS, ElastiCache, EKS, ASG controls
-# - cost_avoidance_services: Expensive services blocks (SageMaker, EMR, etc.)
-#
-# See variables.tf for all configurable limits
+# Cost Avoidance SCPs - split into two due to AWS 5,120 char limit
 
 resource "aws_organizations_policy" "cost_avoidance_compute" {
   count = var.enable_cost_avoidance ? 1 : 0
@@ -267,9 +229,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
   content = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      # =========================================================================
-      # EC2 CONTROLS
-      # =========================================================================
       [
         {
           Sid      = "DenyUnallowedEC2"
@@ -297,9 +256,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
         },
       ],
 
-      # =========================================================================
-      # EBS CONTROLS
-      # =========================================================================
       [
         {
           Sid      = "DenyExpensiveEBS"
@@ -323,9 +279,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
         },
       ],
 
-      # =========================================================================
-      # RDS CONTROLS
-      # =========================================================================
       [
         {
           Sid      = "DenyUnallowedRDS"
@@ -352,9 +305,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
         },
       ],
 
-      # =========================================================================
-      # ELASTICACHE CONTROLS
-      # =========================================================================
       [
         {
           Sid      = "DenyUnallowedCache"
@@ -368,9 +318,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
         },
       ],
 
-      # =========================================================================
-      # EKS & ASG CONTROLS
-      # =========================================================================
       [
         {
           Sid      = "LimitEKSSize"
@@ -394,9 +341,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
         },
       ],
 
-      # =========================================================================
-      # LAMBDA CONTROLS
-      # =========================================================================
       var.block_lambda_provisioned_concurrency ? [
         {
           Sid      = "DenyLambdaPC"
@@ -412,11 +356,6 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
   tags = var.tags
 }
 
-# =============================================================================
-# SPLIT SCP: Cost Avoidance - Expensive Services
-# =============================================================================
-# Blocks expensive managed services - separate SCP due to 5,120 char limit
-
 resource "aws_organizations_policy" "cost_avoidance_services" {
   count = var.enable_cost_avoidance ? 1 : 0
 
@@ -427,7 +366,6 @@ resource "aws_organizations_policy" "cost_avoidance_services" {
   content = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # NO EXEMPTIONS - these services are blocked for EVERYONE in sandbox accounts
       {
         Sid    = "DenyExpensiveML"
         Effect = "Deny"
@@ -475,25 +413,6 @@ resource "aws_organizations_policy_attachment" "cost_avoidance_services" {
   target_id = coalesce(var.cost_avoidance_ou_id, var.sandbox_ou_id)
 }
 
-# =============================================================================
-# NEW SCP: IAM Workload Identity Protection
-# =============================================================================
-# Fills gaps NOT covered by existing InnovationSandboxProtectISBResourcesScp.
-#
-# EXISTING PROTECTION (InnovationSandboxProtectISBResourcesScp):
-# - Already denies ALL actions on InnovationSandbox-ndx*, AWSReservedSSO*,
-#   stacksets-exec-*, Isb-ndx* roles
-#
-# THIS SCP ADDS:
-# - Block creating roles with Admin*/admin* patterns (privilege escalation)
-# - Block iam:PassRole to privileged roles (prevent attaching to EC2/Lambda)
-# - Block sts:AssumeRole to privileged roles (prevent direct assumption)
-# - Block creating OrganizationAccountAccessRole, aws-service-role/*
-#
-# IMPORTANT: The Innovation Sandbox "SecurityAndIsolationRestrictions" SCP
-# currently denies iam:CreateUser. To allow user creation, that SCP must be
-# modified. Role creation (iam:CreateRole) is already allowed.
-
 resource "aws_organizations_policy" "iam_workload_identity" {
   count = var.enable_iam_workload_identity ? 1 : 0
 
@@ -504,28 +423,17 @@ resource "aws_organizations_policy" "iam_workload_identity" {
   content = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # =======================================================================
-      # DENY: Creating roles/users with admin patterns
-      # =======================================================================
-      # NOT covered by existing SCPs - prevents naming roles to look privileged
       {
         Sid    = "DenyCreatingAdminRoles"
         Effect = "Deny"
-        Action = [
-          "iam:CreateRole",
-          "iam:CreateUser"
-        ]
+        Action = ["iam:CreateRole", "iam:CreateUser"]
         Resource = [
-          # Common admin role patterns - not covered by existing SCPs
           "arn:aws:iam::*:role/Admin*",
           "arn:aws:iam::*:role/admin*",
           "arn:aws:iam::*:user/Admin*",
           "arn:aws:iam::*:user/admin*",
-          # OrganizationAccountAccessRole - could be used to escalate
           "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          # AWS service-linked roles - users shouldn't create directly
           "arn:aws:iam::*:role/aws-service-role/*",
-          # AWSAccelerator roles - protect LZA infrastructure
           "arn:aws:iam::*:role/AWSAccelerator*",
           "arn:aws:iam::*:role/cdk-accel*"
         ]
@@ -535,10 +443,6 @@ resource "aws_organizations_policy" "iam_workload_identity" {
           }
         }
       },
-      # =======================================================================
-      # DENY: Modifying admin-pattern roles
-      # =======================================================================
-      # Protect any Admin* roles that exist from tampering
       {
         Sid    = "DenyModifyingAdminRoles"
         Effect = "Deny"
@@ -574,19 +478,11 @@ resource "aws_organizations_policy" "iam_workload_identity" {
           }
         }
       },
-      # =======================================================================
-      # DENY: Passing privileged roles to services
-      # =======================================================================
-      # NOT covered by existing SCPs - prevent attaching privileged roles
-      # to EC2 instances, Lambda functions, etc.
       {
         Sid    = "DenyPassingPrivilegedRoles"
         Effect = "Deny"
-        Action = [
-          "iam:PassRole"
-        ]
+        Action = ["iam:PassRole"]
         Resource = [
-          # All privileged role patterns
           "arn:aws:iam::*:role/InnovationSandbox*",
           "arn:aws:iam::*:role/aws-reserved/*",
           "arn:aws:iam::*:role/stacksets-exec-*",
@@ -605,17 +501,10 @@ resource "aws_organizations_policy" "iam_workload_identity" {
           }
         }
       },
-      # =======================================================================
-      # DENY: Assuming privileged roles
-      # =======================================================================
-      # NOT covered by existing SCPs - prevent users from assuming
-      # privileged roles via sts:AssumeRole
       {
         Sid    = "DenyAssumingPrivilegedRoles"
         Effect = "Deny"
-        Action = [
-          "sts:AssumeRole"
-        ]
+        Action = ["sts:AssumeRole"]
         Resource = [
           "arn:aws:iam::*:role/InnovationSandbox*",
           "arn:aws:iam::*:role/aws-reserved/*",
@@ -647,16 +536,6 @@ resource "aws_organizations_policy_attachment" "iam_workload_identity" {
   target_id = var.sandbox_ou_id
 }
 
-# =============================================================================
-# IMPORTED SCP: Innovation Sandbox Restrictions
-# =============================================================================
-# This SCP was originally created by Innovation Sandbox CDK/CloudFormation.
-# We import it to Terraform to manage modifications like removing iam:CreateUser
-# from the deny list to allow workload identity.
-#
-# IMPORT COMMAND:
-# terraform import 'module.scp_manager.aws_organizations_policy.restrictions' p-6tw8eixp
-
 resource "aws_organizations_policy" "restrictions" {
   name        = "InnovationSandboxRestrictionsScp"
   description = "SCP for security, isolation, and region restrictions. MANAGED BY TERRAFORM."
@@ -665,9 +544,6 @@ resource "aws_organizations_policy" "restrictions" {
   content = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # =======================================================================
-      # REGION RESTRICTIONS (consolidated from LimitRegionsScp)
-      # =======================================================================
       {
         Sid      = "DenyRegionAccess"
         Effect   = "Deny"
@@ -690,9 +566,6 @@ resource "aws_organizations_policy" "restrictions" {
           "aws-portal:ViewAccount",
           "cloudtrail:CreateServiceLinkedChannel",
           "cloudtrail:UpdateServiceLinkedChannel",
-          # iam:CreateUser - REMOVED to allow workload identity
-          # Users can now create IAM users, but InnovationSandboxIamWorkloadIdentityScp
-          # prevents creating users with privileged naming patterns
           "networkmanager:AssociateTransitGatewayConnectPeer",
           "networkmanager:DisassociateTransitGatewayConnectPeer",
           "networkmanager:StartOrganizationServiceAccessUpdate",

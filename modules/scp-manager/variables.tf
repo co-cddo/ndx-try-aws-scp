@@ -45,47 +45,16 @@ variable "tags" {
   default     = {}
 }
 
-# =============================================================================
-# ENHANCED COST AVOIDANCE VARIABLES
-# =============================================================================
-
 variable "denied_ec2_instance_types" {
-  description = <<-EOT
-    EC2 instance type patterns to explicitly deny (GPU, accelerated computing, very large).
-
-    NOTE: Patterns are consolidated using wildcards to reduce SCP size.
-    AWS SCP limit is 5,120 characters - aggressive wildcards help stay under limit.
-  EOT
-  type = list(string)
-  default = [
-    # GPU/Graphics - p* covers p2,p3,p4d,p4de,p5; g* covers g3,g3s,g4dn,g4ad,g5,g5g,g6
-    "p*", "g*",
-    # ML accelerators - inf* covers inf1,inf2; trn* covers trn1,trn1n,trn2; dl* covers dl1,dl2q
-    "inf*", "trn*", "dl*",
-    # High memory (6TB-24TB RAM) - u-* covers u-6tb1,u-9tb1,u-12tb1,u-18tb1,u-24tb1
-    "u-*",
-    # Metal instances
-    "*.metal*",
-    # Very large (12xlarge and above)
-    "*.12xlarge", "*.16xlarge", "*.18xlarge", "*.24xlarge", "*.32xlarge", "*.48xlarge"
-  ]
+  description = "EC2 instance types to deny (GPU, accelerated, very large). Uses wildcards for SCP size."
+  type        = list(string)
+  default     = ["p*", "g*", "inf*", "trn*", "dl*", "u-*", "*.metal*", "*.12xlarge", "*.16xlarge", "*.18xlarge", "*.24xlarge", "*.32xlarge", "*.48xlarge"]
 }
 
 variable "allowed_rds_instance_classes" {
-  description = <<-EOT
-    RDS DB instance classes allowed (uses db.* prefix).
-
-    NOTE: Using wildcards (db.t3.*, db.t4g.*) to reduce SCP size.
-  EOT
-  type = list(string)
-  default = [
-    # Burstable - wildcards cover micro/small/medium/large
-    "db.t3.*", "db.t4g.*",
-    # General purpose - specific sizes only
-    "db.m5.large", "db.m5.xlarge",
-    "db.m6g.large", "db.m6g.xlarge",
-    "db.m6i.large", "db.m6i.xlarge"
-  ]
+  description = "RDS instance classes allowed. Uses wildcards for SCP size."
+  type        = list(string)
+  default     = ["db.t3.*", "db.t4g.*", "db.m5.large", "db.m5.xlarge", "db.m6g.large", "db.m6g.xlarge", "db.m6i.large", "db.m6i.xlarge"]
 }
 
 variable "allow_rds_multi_az" {
@@ -94,21 +63,10 @@ variable "allow_rds_multi_az" {
   default     = false
 }
 
-# NOTE: max_rds_storage_gb removed - rds:StorageSize condition key has limited support
-
 variable "allowed_elasticache_node_types" {
-  description = <<-EOT
-    ElastiCache node types allowed.
-
-    NOTE: Using wildcards (cache.t3.*, cache.t4g.*) to reduce SCP size.
-  EOT
-  type = list(string)
-  default = [
-    # Burstable - wildcards cover micro/small/medium
-    "cache.t3.*", "cache.t4g.*",
-    # General purpose - specific sizes only
-    "cache.m5.large", "cache.m6g.large"
-  ]
+  description = "ElastiCache node types allowed. Uses wildcards for SCP size."
+  type        = list(string)
+  default     = ["cache.t3.*", "cache.t4g.*", "cache.m5.large", "cache.m6g.large"]
 }
 
 variable "max_ebs_volume_size_gb" {
@@ -130,44 +88,16 @@ variable "block_lambda_provisioned_concurrency" {
 }
 
 variable "block_expensive_services" {
-  description = <<-EOT
-    List of expensive service actions to completely block.
-
-    NOTE: Using wildcards where possible to reduce SCP character count.
-    AWS SCP limit is 5,120 characters.
-  EOT
-  type = list(string)
+  description = "Expensive service actions to block. Uses wildcards for SCP size."
+  type        = list(string)
   default = [
-    # MSK (Kafka) - kafka:Create* covers CreateCluster, CreateClusterV2
-    "kafka:Create*",
-    # FSx, Kinesis
-    "fsx:CreateFileSystem",
-    "kinesis:CreateStream",
-    # QuickSight - quicksight:*User covers CreateUser, RegisterUser
-    "quicksight:*User",
-    # Dedicated hosts and reserved capacity
-    "ec2:AllocateDedicatedHosts",
-    "ec2:PurchaseReserved*",
-    "rds:PurchaseReserved*",
-    "elasticache:PurchaseReserved*",
-    "savingsplans:CreateSavingsPlan",
-    # Neptune, DocumentDB - Create* covers cluster and instance
-    "neptune:Create*",
-    "docdb:Create*",
-    # MemoryDB
-    "memorydb:CreateCluster",
-    # OpenSearch - Create* covers both domains
-    "es:Create*",
-    "opensearch:Create*",
-    # Batch, Glue
-    "batch:CreateComputeEnvironment",
-    "glue:CreateJob",
-    "glue:CreateDevEndpoint",
-    # EFS, Timestream
-    "elasticfilesystem:CreateFileSystem",
-    "timestream:Create*",
-    # QLDB
-    "qldb:CreateLedger"
+    "kafka:Create*", "fsx:CreateFileSystem", "kinesis:CreateStream", "quicksight:*User",
+    "ec2:AllocateDedicatedHosts", "ec2:PurchaseReserved*", "rds:PurchaseReserved*",
+    "elasticache:PurchaseReserved*", "savingsplans:CreateSavingsPlan",
+    "neptune:Create*", "docdb:Create*", "memorydb:CreateCluster",
+    "es:Create*", "opensearch:Create*",
+    "batch:CreateComputeEnvironment", "glue:CreateJob", "glue:CreateDevEndpoint",
+    "elasticfilesystem:CreateFileSystem", "timestream:Create*", "qldb:CreateLedger"
   ]
 }
 
@@ -195,8 +125,6 @@ variable "max_eks_nodegroup_size" {
   default     = 5
 }
 
-# NOTE: max_ecs_task_count removed - no reliable SCP condition key for ECS desired count
-
 variable "enable_cost_avoidance" {
   description = "Whether to create cost avoidance SCP"
   type        = bool
@@ -204,22 +132,7 @@ variable "enable_cost_avoidance" {
 }
 
 variable "enable_iam_workload_identity" {
-  description = <<-EOT
-    Enable IAM Workload Identity SCP that allows users to create IAM roles
-    for workloads (EC2 instance roles, Lambda execution roles) while preventing
-    privilege escalation.
-
-    IMPORTANT: This SCP works alongside the existing Innovation Sandbox SCPs.
-    The Innovation Sandbox "SecurityAndIsolationRestrictions" SCP must be
-    modified to REMOVE iam:CreateRole and iam:CreateUser from its deny list
-    for this to take effect.
-
-    Security model:
-    - Users CAN create roles/users (needed for EC2, Lambda, etc.)
-    - Users CANNOT create roles matching exempt patterns (prevents SCP bypass)
-    - Users CANNOT modify/delete exempt roles (protects admin infrastructure)
-    - Any role users create is still subject to ALL SCPs
-  EOT
+  description = "Enable IAM Workload Identity SCP for workload roles while preventing privilege escalation"
   type        = bool
   default     = false
 }
