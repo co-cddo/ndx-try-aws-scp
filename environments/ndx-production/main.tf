@@ -70,21 +70,13 @@ module "service_quotas" {
   regions = var.managed_regions
 
   # EC2 quotas - 64 vCPUs allows reasonable compute, ~$77/day max
-  enable_ec2_quotas         = var.enable_service_quotas
-  ec2_on_demand_vcpu_limit  = var.ec2_vcpu_quota
-  ec2_spot_vcpu_limit       = var.ec2_vcpu_quota
-  ec2_gpu_vcpu_limit        = 4
-  ec2_p_instance_vcpu_limit = 0
-  ec2_dl_vcpu_limit         = 0
-  ec2_high_mem_vcpu_limit   = 0
+  # GPU/accelerator quotas disabled (enable_ec2_gpu_quotas=false) - SCP already blocks these
+  enable_ec2_quotas        = var.enable_service_quotas
+  ec2_on_demand_vcpu_limit = var.ec2_vcpu_quota
+  ec2_spot_vcpu_limit      = var.ec2_vcpu_quota
 
-  # EBS quotas - 2 TiB total, ~$6/day
-  enable_ebs_quotas   = var.enable_service_quotas
-  ebs_gp3_storage_tib = var.ebs_storage_quota_tib
-  ebs_gp2_storage_tib = var.ebs_storage_quota_tib
-  ebs_io1_iops_limit  = 0  # Blocked - also in SCP
-  ebs_io2_iops_limit  = 0  # Blocked - also in SCP
-  ebs_snapshot_limit  = 20 # Reduced - 100 excessive for 24hr lease
+  # EBS quotas DISABLED - uses 5 template slots, SCP already limits volume types/sizes
+  # enable_ebs_quotas defaults to false in module
 
   # Lambda quotas - 100 concurrent executions
   enable_lambda_quotas         = var.enable_service_quotas

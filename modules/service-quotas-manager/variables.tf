@@ -45,9 +45,15 @@ variable "enable_template_association" {
 # effective control as they limit total compute regardless of instance count.
 
 variable "enable_ec2_quotas" {
-  description = "Enable EC2 service quota limits"
+  description = "Enable EC2 service quota limits (on-demand and spot vCPUs)"
   type        = bool
   default     = true
+}
+
+variable "enable_ec2_gpu_quotas" {
+  description = "Enable EC2 GPU/accelerator quota limits (G, VT, P, DL, High-Memory). Disabled by default as SCP already blocks these."
+  type        = bool
+  default     = false
 }
 
 variable "ec2_on_demand_vcpu_limit" {

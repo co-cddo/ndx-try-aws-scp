@@ -53,9 +53,9 @@ resource "aws_servicequotas_template" "ec2_spot_vcpus" {
   value        = var.ec2_spot_vcpu_limit
 }
 
-# G and VT instances (GPU/Graphics) - set to 0 to completely block
+# G and VT instances (GPU/Graphics) - disabled by default (SCP blocks these)
 resource "aws_servicequotas_template" "ec2_gpu_vcpus" {
-  for_each = var.enable_ec2_quotas ? toset(var.regions) : toset([])
+  for_each = var.enable_ec2_gpu_quotas ? toset(var.regions) : toset([])
 
   quota_code   = "L-DB2E81BA" # Running On-Demand G and VT instances
   service_code = "ec2"
@@ -63,9 +63,9 @@ resource "aws_servicequotas_template" "ec2_gpu_vcpus" {
   value        = var.ec2_gpu_vcpu_limit
 }
 
-# P instances (ML/GPU) - set to 0 to completely block
+# P instances (ML/GPU) - disabled by default (SCP blocks these)
 resource "aws_servicequotas_template" "ec2_p_vcpus" {
-  for_each = var.enable_ec2_quotas ? toset(var.regions) : toset([])
+  for_each = var.enable_ec2_gpu_quotas ? toset(var.regions) : toset([])
 
   quota_code   = "L-417A185B" # Running On-Demand P instances
   service_code = "ec2"
@@ -74,9 +74,9 @@ resource "aws_servicequotas_template" "ec2_p_vcpus" {
 }
 
 
-# DL instances (Deep Learning) - set to 0 to completely block
+# DL instances (Deep Learning) - disabled by default (SCP blocks these)
 resource "aws_servicequotas_template" "ec2_dl_vcpus" {
-  for_each = var.enable_ec2_quotas ? toset(var.regions) : toset([])
+  for_each = var.enable_ec2_gpu_quotas ? toset(var.regions) : toset([])
 
   quota_code   = "L-6E869C2A" # Running On-Demand DL instances
   service_code = "ec2"
@@ -84,9 +84,9 @@ resource "aws_servicequotas_template" "ec2_dl_vcpus" {
   value        = var.ec2_dl_vcpu_limit
 }
 
-# High Memory instances - set to 0 to completely block
+# High Memory instances - disabled by default (SCP blocks these)
 resource "aws_servicequotas_template" "ec2_high_mem_vcpus" {
-  for_each = var.enable_ec2_quotas ? toset(var.regions) : toset([])
+  for_each = var.enable_ec2_gpu_quotas ? toset(var.regions) : toset([])
 
   quota_code   = "L-43DA4232" # Running On-Demand High Memory instances
   service_code = "ec2"
