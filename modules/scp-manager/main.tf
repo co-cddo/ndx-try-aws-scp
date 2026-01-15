@@ -689,3 +689,8 @@ resource "aws_organizations_policy" "restrictions" {
     prevent_destroy = true
   }
 }
+
+resource "aws_organizations_policy_attachment" "restrictions" {
+  policy_id = aws_organizations_policy.restrictions.id
+  target_id = var.sandbox_ou_id
+}
