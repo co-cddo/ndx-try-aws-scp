@@ -74,17 +74,13 @@ module "service_quotas" {
   enable_lambda_quotas         = var.enable_service_quotas
   lambda_concurrent_executions = var.lambda_concurrency_quota
 
-  # VPC quotas - reasonable limits for experimentation
-  enable_vpc_quotas        = var.enable_service_quotas
-  vpc_limit                = 5
-  nat_gateway_per_az_limit = 2
-  elastic_ip_limit         = 5
+  # VPC quotas DISABLED - AWS limits templates to 10 total, prioritizing EC2/Lambda/EKS
+  # VPCs are free, NAT gateways have small hourly cost ($1.08/day)
+  enable_vpc_quotas = false
 
-  # RDS quotas - 5 instances, 500GB total
-  enable_rds_quotas            = var.enable_service_quotas
-  rds_instance_limit           = var.rds_instance_quota
-  rds_total_storage_gb         = var.rds_storage_quota_gb
-  rds_read_replicas_per_source = 0
+  # RDS quotas DISABLED - AWS limits templates to 10 total, prioritizing EC2/Lambda/EKS
+  # RDS controlled via instance type restrictions in SCP
+  enable_rds_quotas = false
 
   # EKS quotas - 2 clusters max
   enable_eks_quotas = var.enable_service_quotas
@@ -196,7 +192,8 @@ module "cost_anomaly_detection" {
   create_sns_topic = true
   alert_emails     = var.budget_alert_emails
 
-  alert_frequency        = "DAILY"
+  # IMMEDIATE required for SNS subscribers (DAILY/WEEKLY only support EMAIL)
+  alert_frequency        = "IMMEDIATE"
   alert_threshold_amount = 10
 
   enable_high_priority_alerts    = true
