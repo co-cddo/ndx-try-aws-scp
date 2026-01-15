@@ -50,36 +50,38 @@ variable "tags" {
 # =============================================================================
 
 variable "denied_ec2_instance_types" {
-  description = "EC2 instance type patterns to explicitly deny (GPU, accelerated computing, very large)"
-  type        = list(string)
+  description = <<-EOT
+    EC2 instance type patterns to explicitly deny (GPU, accelerated computing, very large).
+
+    NOTE: Patterns are consolidated using wildcards to reduce SCP size.
+    AWS SCP limit is 5,120 characters - aggressive wildcards help stay under limit.
+  EOT
+  type = list(string)
   default = [
-    # GPU instances - extremely expensive ($3-32+/hour)
-    "p2.*", "p3.*", "p4d.*", "p4de.*", "p5.*",
-    # Graphics instances
-    "g3.*", "g3s.*", "g4dn.*", "g4ad.*", "g5.*", "g5g.*", "g6.*",
-    # Inference/ML accelerators
-    "inf1.*", "inf2.*",
-    # Training instances
-    "trn1.*", "trn1n.*", "trn2.*",
-    # Deep learning
-    "dl1.*", "dl2q.*",
-    # High memory (6TB-24TB RAM)
-    "u-6tb1.*", "u-9tb1.*", "u-12tb1.*", "u-18tb1.*", "u-24tb1.*",
-    # Very large metal instances
-    "*.metal", "*.metal-24xl", "*.metal-48xl",
-    # X-large instance families (12xlarge and above)
+    # GPU/Graphics - p* covers p2,p3,p4d,p4de,p5; g* covers g3,g3s,g4dn,g4ad,g5,g5g,g6
+    "p*", "g*",
+    # ML accelerators - inf* covers inf1,inf2; trn* covers trn1,trn1n,trn2; dl* covers dl1,dl2q
+    "inf*", "trn*", "dl*",
+    # High memory (6TB-24TB RAM) - u-* covers u-6tb1,u-9tb1,u-12tb1,u-18tb1,u-24tb1
+    "u-*",
+    # Metal instances
+    "*.metal*",
+    # Very large (12xlarge and above)
     "*.12xlarge", "*.16xlarge", "*.18xlarge", "*.24xlarge", "*.32xlarge", "*.48xlarge"
   ]
 }
 
 variable "allowed_rds_instance_classes" {
-  description = "RDS DB instance classes allowed (uses db.* prefix)"
-  type        = list(string)
+  description = <<-EOT
+    RDS DB instance classes allowed (uses db.* prefix).
+
+    NOTE: Using wildcards (db.t3.*, db.t4g.*) to reduce SCP size.
+  EOT
+  type = list(string)
   default = [
-    # Burstable (good for dev/test)
-    "db.t3.micro", "db.t3.small", "db.t3.medium", "db.t3.large",
-    "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
-    # General purpose (reasonable production)
+    # Burstable - wildcards cover micro/small/medium/large
+    "db.t3.*", "db.t4g.*",
+    # General purpose - specific sizes only
     "db.m5.large", "db.m5.xlarge",
     "db.m6g.large", "db.m6g.xlarge",
     "db.m6i.large", "db.m6i.xlarge"
@@ -95,11 +97,16 @@ variable "allow_rds_multi_az" {
 # NOTE: max_rds_storage_gb removed - rds:StorageSize condition key has limited support
 
 variable "allowed_elasticache_node_types" {
-  description = "ElastiCache node types allowed"
-  type        = list(string)
+  description = <<-EOT
+    ElastiCache node types allowed.
+
+    NOTE: Using wildcards (cache.t3.*, cache.t4g.*) to reduce SCP size.
+  EOT
+  type = list(string)
   default = [
-    "cache.t3.micro", "cache.t3.small", "cache.t3.medium",
-    "cache.t4g.micro", "cache.t4g.small", "cache.t4g.medium",
+    # Burstable - wildcards cover micro/small/medium
+    "cache.t3.*", "cache.t4g.*",
+    # General purpose - specific sizes only
     "cache.m5.large", "cache.m6g.large"
   ]
 }
@@ -123,50 +130,43 @@ variable "block_lambda_provisioned_concurrency" {
 }
 
 variable "block_expensive_services" {
-  description = "List of expensive service actions to completely block"
-  type        = list(string)
+  description = <<-EOT
+    List of expensive service actions to completely block.
+
+    NOTE: Using wildcards where possible to reduce SCP character count.
+    AWS SCP limit is 5,120 characters.
+  EOT
+  type = list(string)
   default = [
-    # MSK (Kafka) - very expensive ($0.21-2.88/hour per broker)
-    "kafka:CreateCluster",
-    "kafka:CreateClusterV2",
-    # FSx - expensive managed file systems
+    # MSK (Kafka) - kafka:Create* covers CreateCluster, CreateClusterV2
+    "kafka:Create*",
+    # FSx, Kinesis
     "fsx:CreateFileSystem",
-    # Kinesis Data Streams - per-shard pricing adds up
     "kinesis:CreateStream",
-    # QuickSight - per-user pricing
-    "quicksight:CreateUser",
-    "quicksight:RegisterUser",
-    # Dedicated hosts
+    # QuickSight - quicksight:*User covers CreateUser, RegisterUser
+    "quicksight:*User",
+    # Dedicated hosts and reserved capacity
     "ec2:AllocateDedicatedHosts",
-    # Reserved capacity (commitment)
-    "ec2:PurchaseReservedInstancesOffering",
-    "rds:PurchaseReservedDBInstancesOffering",
-    "elasticache:PurchaseReservedCacheNodesOffering",
-    # Savings plans (commitment)
+    "ec2:PurchaseReserved*",
+    "rds:PurchaseReserved*",
+    "elasticache:PurchaseReserved*",
     "savingsplans:CreateSavingsPlan",
-    # Neptune - graph database ($0.348-8.35/hr)
-    "neptune:CreateDBCluster",
-    "neptune:CreateDBInstance",
-    # DocumentDB - MongoDB compatible ($0.26-8.42/hr)
-    "docdb:CreateDBCluster",
-    "docdb:CreateDBInstance",
-    # MemoryDB - Redis compatible (expensive)
+    # Neptune, DocumentDB - Create* covers cluster and instance
+    "neptune:Create*",
+    "docdb:Create*",
+    # MemoryDB
     "memorydb:CreateCluster",
-    # OpenSearch - can be very expensive
-    "es:CreateDomain",
-    "es:CreateElasticsearchDomain",
-    "opensearch:CreateDomain",
-    # AWS Batch - can spin up many instances
+    # OpenSearch - Create* covers both domains
+    "es:Create*",
+    "opensearch:Create*",
+    # Batch, Glue
     "batch:CreateComputeEnvironment",
-    # Glue - DPU hours add up quickly
     "glue:CreateJob",
     "glue:CreateDevEndpoint",
-    # EFS Provisioned Throughput - expensive
+    # EFS, Timestream
     "elasticfilesystem:CreateFileSystem",
-    # Timestream - expensive time series DB
-    "timestream:CreateDatabase",
-    "timestream:CreateTable",
-    # QLDB - ledger database
+    "timestream:Create*",
+    # QLDB
     "qldb:CreateLedger"
   ]
 }
