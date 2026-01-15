@@ -522,29 +522,6 @@ variable "bedrock_tokens_per_minute" {
   default     = 10000
 }
 
-# -----------------------------------------------------------------------------
-# REMOVED BEDROCK QUOTAS
-# -----------------------------------------------------------------------------
-# The following Bedrock model quotas were REMOVED because they used placeholder
-# quota codes that don't exist in AWS:
-# - bedrock_titan_tokens_per_minute (L-1A2A3A4A - fake code)
-# - bedrock_stability_requests_per_minute (L-2B2B2B2B - fake code)
-# - bedrock_cohere_tokens_per_minute (L-3C3C3C3C - fake code)
-# - bedrock_meta_tokens_per_minute (L-4D4D4D4D - fake code)
-#
-# ALTERNATIVE PROTECTION:
-# Use IAM policies to restrict which Bedrock models users can invoke.
-# Example IAM deny policy:
-#   {
-#     "Effect": "Deny",
-#     "Action": "bedrock:InvokeModel",
-#     "Resource": [
-#       "arn:aws:bedrock:*::foundation-model/amazon.titan*",
-#       "arn:aws:bedrock:*::foundation-model/stability.*",
-#       "arn:aws:bedrock:*::foundation-model/cohere.*"
-#     ]
-#   }
-# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # API GATEWAY QUOTAS
