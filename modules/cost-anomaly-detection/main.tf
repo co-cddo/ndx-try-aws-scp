@@ -1,21 +1,5 @@
-# =============================================================================
-# COST ANOMALY DETECTION MODULE
-# =============================================================================
-# AWS Cost Anomaly Detection uses ML to identify unusual spending patterns.
-# This is a FREE service - you only pay for the resources being monitored.
-#
-# Features:
-# - ML-based anomaly detection (learns spending patterns over ~2 weeks)
-# - Near real-time alerts (evaluates every ~24 hours)
-# - Configurable thresholds to reduce noise
-# - SNS/email notifications
-#
-# Integration with Defense in Depth:
-#   Layer 1: SCPs - What actions are allowed
-#   Layer 2: Service Quotas - How many resources can exist
-#   Layer 3: Budgets - Hard spend limits with automated actions
-#   Layer 4: Anomaly Detection - ML-based unusual pattern detection
-# =============================================================================
+# Cost Anomaly Detection - ML-based spending pattern alerts (FREE service)
+# AWS limit: 10 DIMENSIONAL monitors per account. Use create_monitors=false to reuse existing.
 
 terraform {
   required_providers {
@@ -25,10 +9,6 @@ terraform {
     }
   }
 }
-
-# -----------------------------------------------------------------------------
-# SNS TOPIC FOR ANOMALY ALERTS
-# -----------------------------------------------------------------------------
 
 resource "aws_sns_topic" "cost_anomaly_alerts" {
   count = var.create_sns_topic ? 1 : 0
@@ -67,7 +47,6 @@ resource "aws_sns_topic_policy" "cost_anomaly_alerts" {
   })
 }
 
-# Email subscriptions for anomaly alerts
 resource "aws_sns_topic_subscription" "email" {
   count = var.create_sns_topic ? length(var.alert_emails) : 0
 
@@ -78,13 +57,9 @@ resource "aws_sns_topic_subscription" "email" {
 
 data "aws_caller_identity" "current" {}
 
-# -----------------------------------------------------------------------------
-# COST ANOMALY MONITOR
-# -----------------------------------------------------------------------------
-# The monitor defines WHAT to monitor for anomalies.
-# We create a service-level monitor to catch anomalies across all AWS services.
-
 resource "aws_ce_anomaly_monitor" "main" {
+  count = var.create_monitors ? 1 : 0
+
   name              = "${var.namespace}-cost-anomaly-monitor"
   monitor_type      = "DIMENSIONAL"
   monitor_dimension = "SERVICE"
@@ -94,9 +69,8 @@ resource "aws_ce_anomaly_monitor" "main" {
   })
 }
 
-# Optional: Linked account monitor for multi-account setups
 resource "aws_ce_anomaly_monitor" "linked_accounts" {
-  count = var.monitor_linked_accounts ? 1 : 0
+  count = var.create_monitors && var.monitor_linked_accounts ? 1 : 0
 
   name              = "${var.namespace}-linked-account-anomaly-monitor"
   monitor_type      = "DIMENSIONAL"
@@ -107,27 +81,28 @@ resource "aws_ce_anomaly_monitor" "linked_accounts" {
   })
 }
 
-# -----------------------------------------------------------------------------
-# COST ANOMALY SUBSCRIPTION
-# -----------------------------------------------------------------------------
-# The subscription defines HOW to be notified when anomalies are detected.
+locals {
+  effective_monitor_arns = var.create_monitors ? compact([
+    aws_ce_anomaly_monitor.main[0].arn,
+    var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
+  ]) : var.existing_monitor_arns
+
+  create_subscriptions = length(local.effective_monitor_arns) > 0
+}
 
 resource "aws_ce_anomaly_subscription" "main" {
+  count = local.create_subscriptions ? 1 : 0
+
   name      = "${var.namespace}-cost-anomaly-subscription"
   frequency = var.alert_frequency
 
-  monitor_arn_list = compact([
-    aws_ce_anomaly_monitor.main.arn,
-    var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
-  ])
+  monitor_arn_list = local.effective_monitor_arns
 
   subscriber {
     type    = "SNS"
     address = var.create_sns_topic ? aws_sns_topic.cost_anomaly_alerts[0].arn : var.existing_sns_topic_arn
   }
 
-  # Threshold expression to filter out noise
-  # Only alert when impact is above the configured threshold
   dynamic "threshold_expression" {
     for_each = var.alert_threshold_amount > 0 ? [1] : []
     content {
@@ -144,21 +119,13 @@ resource "aws_ce_anomaly_subscription" "main" {
   })
 }
 
-# -----------------------------------------------------------------------------
-# OPTIONAL: HIGH-PRIORITY SUBSCRIPTION FOR LARGE ANOMALIES
-# -----------------------------------------------------------------------------
-# Separate subscription for immediate alerts on large anomalies
-
 resource "aws_ce_anomaly_subscription" "high_priority" {
-  count = var.enable_high_priority_alerts ? 1 : 0
+  count = local.create_subscriptions && var.enable_high_priority_alerts ? 1 : 0
 
   name      = "${var.namespace}-high-priority-anomaly-subscription"
   frequency = "IMMEDIATE"
 
-  monitor_arn_list = compact([
-    aws_ce_anomaly_monitor.main.arn,
-    var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
-  ])
+  monitor_arn_list = local.effective_monitor_arns
 
   subscriber {
     type    = "SNS"

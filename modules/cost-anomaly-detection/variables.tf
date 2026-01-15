@@ -1,14 +1,3 @@
-# =============================================================================
-# COST ANOMALY DETECTION - VARIABLES
-# =============================================================================
-# AWS Cost Anomaly Detection is FREE. These variables configure the
-# sensitivity and notification preferences.
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# GENERAL CONFIGURATION
-# -----------------------------------------------------------------------------
-
 variable "namespace" {
   description = "Namespace prefix for resource names"
   type        = string
@@ -19,10 +8,6 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
-
-# -----------------------------------------------------------------------------
-# SNS CONFIGURATION
-# -----------------------------------------------------------------------------
 
 variable "create_sns_topic" {
   description = "Create a new SNS topic for anomaly alerts. Set to false to use existing topic."
@@ -42,29 +27,26 @@ variable "alert_emails" {
   default     = []
 }
 
-# -----------------------------------------------------------------------------
-# MONITOR CONFIGURATION
-# -----------------------------------------------------------------------------
-
-variable "monitor_linked_accounts" {
-  description = "Create additional monitor for linked account spending patterns"
+variable "create_monitors" {
+  description = "Create new monitors. Set false if account has 10 monitors (AWS limit). Use existing_monitor_arns instead."
   type        = bool
   default     = true
 }
 
-# -----------------------------------------------------------------------------
-# ALERT CONFIGURATION
-# -----------------------------------------------------------------------------
+variable "existing_monitor_arns" {
+  description = "Existing monitor ARNs to use when create_monitors=false"
+  type        = list(string)
+  default     = []
+}
+
+variable "monitor_linked_accounts" {
+  description = "Create additional monitor for linked account spending patterns (only when create_monitors = true)"
+  type        = bool
+  default     = true
+}
 
 variable "alert_frequency" {
-  description = <<-EOT
-    How often to receive anomaly alerts:
-    - IMMEDIATE: As soon as anomaly is detected (within ~24 hours of spend)
-    - DAILY: Daily digest of anomalies
-    - WEEKLY: Weekly digest of anomalies
-
-    Recommendation: DAILY for general monitoring, IMMEDIATE for production
-  EOT
+  description = "Alert frequency: IMMEDIATE, DAILY, or WEEKLY"
   type        = string
   default     = "DAILY"
 
@@ -75,43 +57,19 @@ variable "alert_frequency" {
 }
 
 variable "alert_threshold_amount" {
-  description = <<-EOT
-    Minimum anomaly impact (USD) to trigger an alert.
-    Set to 0 to receive all anomaly alerts.
-
-    For 24-hour sandboxes with $50/day budget:
-    - $5: Catch small anomalies (may be noisy initially)
-    - $10: Balanced threshold (recommended)
-    - $25: Only major anomalies (50% of daily budget)
-  EOT
+  description = "Minimum anomaly impact (USD) to trigger alert. 0 = all alerts."
   type        = number
   default     = 10
 }
 
-# -----------------------------------------------------------------------------
-# HIGH-PRIORITY ALERTS
-# -----------------------------------------------------------------------------
-
 variable "enable_high_priority_alerts" {
-  description = <<-EOT
-    Enable separate IMMEDIATE alerts for large anomalies.
-    Use this to get instant notification of significant cost spikes
-    while keeping regular alerts on a daily/weekly schedule.
-  EOT
+  description = "Enable separate IMMEDIATE alerts for large anomalies"
   type        = bool
   default     = true
 }
 
 variable "high_priority_threshold_amount" {
-  description = <<-EOT
-    Minimum anomaly impact (USD) to trigger HIGH-PRIORITY immediate alert.
-    Should be higher than alert_threshold_amount.
-
-    For 24-hour sandboxes with $50/day budget:
-    - $25: Half of daily budget
-    - $50: Full daily budget exceeded (recommended)
-    - $100: Double daily budget
-  EOT
+  description = "Minimum anomaly impact (USD) to trigger immediate high-priority alert"
   type        = number
   default     = 50
 }
