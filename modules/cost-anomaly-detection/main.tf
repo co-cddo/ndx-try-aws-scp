@@ -82,12 +82,13 @@ resource "aws_ce_anomaly_monitor" "linked_accounts" {
 }
 
 locals {
+  # Use only input variables for count to avoid "value depends on resource attributes" error
+  create_subscriptions = var.create_monitors || length(var.existing_monitor_arns) > 0
+
   effective_monitor_arns = var.create_monitors ? compact([
     aws_ce_anomaly_monitor.main[0].arn,
     var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
   ]) : var.existing_monitor_arns
-
-  create_subscriptions = length(local.effective_monitor_arns) > 0
 }
 
 resource "aws_ce_anomaly_subscription" "main" {
