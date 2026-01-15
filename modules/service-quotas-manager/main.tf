@@ -73,15 +73,6 @@ resource "aws_servicequotas_template" "ec2_p_vcpus" {
   value        = var.ec2_p_instance_vcpu_limit
 }
 
-# Inf instances (Inferentia) - set to 0 to completely block
-resource "aws_servicequotas_template" "ec2_inf_vcpus" {
-  for_each = var.enable_ec2_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-1945E190" # Running On-Demand Inf instances
-  service_code = "ec2"
-  aws_region   = each.value
-  value        = var.ec2_inf_vcpu_limit
-}
 
 # DL instances (Deep Learning) - set to 0 to completely block
 resource "aws_servicequotas_template" "ec2_dl_vcpus" {
@@ -91,16 +82,6 @@ resource "aws_servicequotas_template" "ec2_dl_vcpus" {
   service_code = "ec2"
   aws_region   = each.value
   value        = var.ec2_dl_vcpu_limit
-}
-
-# Trn instances (Trainium) - set to 0 to completely block
-resource "aws_servicequotas_template" "ec2_trn_vcpus" {
-  for_each = var.enable_ec2_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-2C49D5F8" # Running On-Demand Trn instances
-  service_code = "ec2"
-  aws_region   = each.value
-  value        = var.ec2_trn_vcpu_limit
 }
 
 # High Memory instances - set to 0 to completely block
@@ -245,19 +226,6 @@ resource "aws_servicequotas_template" "rds_read_replicas" {
 }
 
 # -----------------------------------------------------------------------------
-# ELASTICACHE SERVICE QUOTAS
-# -----------------------------------------------------------------------------
-
-resource "aws_servicequotas_template" "elasticache_nodes" {
-  for_each = var.enable_elasticache_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-9B87FA9D" # Nodes per Region
-  service_code = "elasticache"
-  aws_region   = each.value
-  value        = var.elasticache_node_limit
-}
-
-# -----------------------------------------------------------------------------
 # EKS SERVICE QUOTAS
 # -----------------------------------------------------------------------------
 
@@ -309,39 +277,6 @@ resource "aws_servicequotas_template" "dynamodb_table_count" {
   value        = var.dynamodb_table_limit
 }
 
-# DynamoDB account-level capacity limits
-resource "aws_servicequotas_template" "dynamodb_read_capacity" {
-  for_each = var.enable_dynamodb_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-8C6F19B1" # Account-level read capacity units
-  service_code = "dynamodb"
-  aws_region   = each.value
-  value        = var.dynamodb_read_capacity_limit
-}
-
-resource "aws_servicequotas_template" "dynamodb_write_capacity" {
-  for_each = var.enable_dynamodb_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-F4C74B24" # Account-level write capacity units
-  service_code = "dynamodb"
-  aws_region   = each.value
-  value        = var.dynamodb_write_capacity_limit
-}
-
-# -----------------------------------------------------------------------------
-# KINESIS SERVICE QUOTAS
-# -----------------------------------------------------------------------------
-# Kinesis streams have per-shard-hour pricing.
-
-resource "aws_servicequotas_template" "kinesis_shards" {
-  for_each = var.enable_kinesis_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-53A1086E" # Shards per Region
-  service_code = "kinesis"
-  aws_region   = each.value
-  value        = var.kinesis_shard_limit
-}
-
 # -----------------------------------------------------------------------------
 # CLOUDWATCH SERVICE QUOTAS
 # -----------------------------------------------------------------------------
@@ -365,63 +300,3 @@ resource "aws_servicequotas_template" "cloudwatch_log_groups" {
 resource "aws_servicequotas_template_association" "sandbox" {
   count = var.enable_template_association ? 1 : 0
 }
-
-# -----------------------------------------------------------------------------
-# BEDROCK SERVICE QUOTAS
-# -----------------------------------------------------------------------------
-# Bedrock has model-specific quotas. These limit tokens/requests per minute.
-#
-# NOTE: Only the Anthropic Claude quota is implemented. Other model families
-# (Titan, Stability, Cohere, Meta) were removed because:
-# 1. Their quota codes are model-specific and region-dependent
-# 2. AWS Service Quota Templates don't support all Bedrock quotas
-# 3. The quota codes must be verified per-region using:
-#    aws service-quotas list-service-quotas --service-code bedrock --region <region>
-#
-# RECOMMENDATION: Use Bedrock model access policies (IAM) to restrict which
-# models users can invoke, rather than relying on service quotas alone.
-
-resource "aws_servicequotas_template" "bedrock_anthropic_tokens" {
-  for_each = var.enable_bedrock_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-F5FA8D9D" # Anthropic Claude tokens per minute
-  service_code = "bedrock"
-  aws_region   = each.value
-  value        = var.bedrock_tokens_per_minute
-}
-
-# -----------------------------------------------------------------------------
-# REMOVED: Additional Bedrock model quotas (Titan, Stability, Cohere, Meta)
-# -----------------------------------------------------------------------------
-# These resources were removed because they used placeholder quota codes
-# (L-1A2A3A4A, L-2B2B2B2B, L-3C3C3C3C, L-4D4D4D4D) that don't exist in AWS.
-#
-# To add quotas for other Bedrock models:
-# 1. Run: aws service-quotas list-service-quotas --service-code bedrock --region us-east-1
-# 2. Find the actual quota code for the specific model
-# 3. Note: Not all models have adjustable quotas via Service Quota Templates
-# 4. Alternative: Use IAM policies to deny access to specific models
-
-# -----------------------------------------------------------------------------
-# API GATEWAY QUOTAS
-# -----------------------------------------------------------------------------
-# GAP FIX: Limit API Gateway to prevent request cost explosion
-# Without throttling limits, attackers could generate millions of requests
-#
-# NOTE: Only throttle rate is adjustable via Service Quota Templates.
-# The burst limit (L-CDF5615A) cannot be adjusted via templates and was removed.
-# Burst limit changes require a support case to AWS.
-
-resource "aws_servicequotas_template" "apigateway_throttle_rate" {
-  for_each = var.enable_apigateway_quotas ? toset(var.regions) : toset([])
-
-  quota_code   = "L-8A5B8E40" # Throttle rate (requests per second)
-  service_code = "apigateway"
-  aws_region   = each.value
-  value        = var.apigateway_throttle_rate_limit
-}
-
-# REMOVED: apigateway_throttle_burst (L-CDF5615A)
-# This quota is NOT adjustable via Service Quota Templates.
-# AWS returns: "IllegalArgumentException: Quota L-CDF5615A is not adjustable"
-# To change burst limits, open an AWS Support case.

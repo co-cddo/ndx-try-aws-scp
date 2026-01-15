@@ -264,7 +264,7 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
           Resource = ["arn:aws:ec2:*:*:volume/*"]
           Condition = {
             "ForAnyValue:StringEquals" = { "ec2:VolumeType" = var.denied_ebs_volume_types }
-            ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns }
+            ArnNotLike                 = { "aws:PrincipalARN" = local.exempt_role_arns }
           }
         },
         {
@@ -343,10 +343,10 @@ resource "aws_organizations_policy" "cost_avoidance_compute" {
 
       var.block_lambda_provisioned_concurrency ? [
         {
-          Sid      = "DenyLambdaPC"
-          Effect   = "Deny"
-          Action   = ["lambda:PutProvisionedConcurrencyConfig"]
-          Resource = ["*"]
+          Sid       = "DenyLambdaPC"
+          Effect    = "Deny"
+          Action    = ["lambda:PutProvisionedConcurrencyConfig"]
+          Resource  = ["*"]
           Condition = { ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns } }
         },
       ] : []

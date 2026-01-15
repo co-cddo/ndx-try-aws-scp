@@ -102,26 +102,8 @@ variable "ec2_p_instance_vcpu_limit" {
   default     = 0
 }
 
-variable "ec2_inf_vcpu_limit" {
-  description = <<-EOT
-    Maximum vCPUs for Inf (Inferentia) instances.
-
-    24-HOUR COST ANALYSIS:
-    - inf1.xlarge = 4 vCPUs @ $0.228/hr = $5.47/day
-    - DEFAULT: 0 (completely blocked - also blocked in SCP)
-  EOT
-  type        = number
-  default     = 0
-}
-
 variable "ec2_dl_vcpu_limit" {
   description = "Maximum vCPUs for DL (Deep Learning) instances. DEFAULT: 0 (blocked)"
-  type        = number
-  default     = 0
-}
-
-variable "ec2_trn_vcpu_limit" {
-  description = "Maximum vCPUs for Trn (Trainium) instances. DEFAULT: 0 (blocked)"
   type        = number
   default     = 0
 }
@@ -145,9 +127,9 @@ variable "ec2_high_mem_vcpu_limit" {
 # runaway storage costs.
 
 variable "enable_ebs_quotas" {
-  description = "Enable EBS service quota limits"
+  description = "Enable EBS service quota limits. Disabled by default to stay under template limits."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "ebs_gp3_storage_tib" {
@@ -329,29 +311,6 @@ variable "rds_read_replicas_per_source" {
 }
 
 # -----------------------------------------------------------------------------
-# ELASTICACHE QUOTAS
-# -----------------------------------------------------------------------------
-
-variable "enable_elasticache_quotas" {
-  description = "Enable ElastiCache service quota limits"
-  type        = bool
-  default     = true
-}
-
-variable "elasticache_node_limit" {
-  description = <<-EOT
-    Maximum ElastiCache nodes per region.
-
-    24-HOUR COST ANALYSIS:
-    - cache.t3.medium @ $0.068/hr = $1.63/day
-    - cache.m5.large @ $0.172/hr = $4.13/day
-    - 10 nodes x $4.13 = $41.30/day max
-  EOT
-  type        = number
-  default     = 10
-}
-
-# -----------------------------------------------------------------------------
 # EKS QUOTAS
 # -----------------------------------------------------------------------------
 
@@ -381,7 +340,7 @@ variable "eks_cluster_limit" {
 variable "enable_elb_quotas" {
   description = "Enable Elastic Load Balancing service quota limits"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "alb_limit" {
@@ -416,63 +375,13 @@ variable "nlb_limit" {
 variable "enable_dynamodb_quotas" {
   description = "Enable DynamoDB service quota limits"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "dynamodb_table_limit" {
   description = "Maximum number of DynamoDB tables"
   type        = number
   default     = 50
-}
-
-variable "dynamodb_read_capacity_limit" {
-  description = <<-EOT
-    Maximum account-level DynamoDB Read Capacity Units.
-
-    24-HOUR COST ANALYSIS:
-    - Provisioned RCU @ $0.00013/RCU-hour
-    - 1000 RCU × 24 hours = $3.12/day
-    - Default 80,000 RCU = $249.60/day (too high!)
-    - Setting to 1000 RCU = ~$3/day max
-  EOT
-  type        = number
-  default     = 1000
-}
-
-variable "dynamodb_write_capacity_limit" {
-  description = <<-EOT
-    Maximum account-level DynamoDB Write Capacity Units.
-
-    24-HOUR COST ANALYSIS:
-    - Provisioned WCU @ $0.00065/WCU-hour
-    - 1000 WCU × 24 hours = $15.60/day
-    - Default 80,000 WCU = $1,248/day (DANGEROUS!)
-    - Setting to 1000 WCU = ~$16/day max
-  EOT
-  type        = number
-  default     = 1000
-}
-
-# -----------------------------------------------------------------------------
-# KINESIS QUOTAS
-# -----------------------------------------------------------------------------
-
-variable "enable_kinesis_quotas" {
-  description = "Enable Kinesis service quota limits"
-  type        = bool
-  default     = true
-}
-
-variable "kinesis_shard_limit" {
-  description = <<-EOT
-    Maximum Kinesis Data Streams shards per region.
-
-    24-HOUR COST ANALYSIS:
-    - $0.015/shard-hour = $0.36/shard-day
-    - DEFAULT: 0 (Kinesis is blocked in SCP)
-  EOT
-  type        = number
-  default     = 0
 }
 
 # -----------------------------------------------------------------------------
@@ -482,7 +391,7 @@ variable "kinesis_shard_limit" {
 variable "enable_cloudwatch_quotas" {
   description = "Enable CloudWatch service quota limits"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cloudwatch_log_group_limit" {
@@ -496,63 +405,6 @@ variable "cloudwatch_log_group_limit" {
   type        = number
   default     = 50
 }
-
-# -----------------------------------------------------------------------------
-# BEDROCK QUOTAS
-# -----------------------------------------------------------------------------
-
-variable "enable_bedrock_quotas" {
-  description = "Enable Bedrock service quota limits"
-  type        = bool
-  default     = true
-}
-
-variable "bedrock_tokens_per_minute" {
-  description = <<-EOT
-    Maximum tokens per minute for Anthropic Claude models.
-
-    24-HOUR COST ANALYSIS:
-    - Claude 3 Sonnet: ~$0.003/1K input, $0.015/1K output
-    - 100K tokens/min × 60 min × 24 hr = 144M tokens/day
-    - At avg $0.01/1K tokens = $1,440/day (too high!)
-    - 10K tokens/min = $144/day max
-    - 5K tokens/min = $72/day max (reasonable)
-  EOT
-  type        = number
-  default     = 10000
-}
-
-
-# -----------------------------------------------------------------------------
-# API GATEWAY QUOTAS
-# -----------------------------------------------------------------------------
-# GAP FIX: Without throttling limits, attackers could generate millions of
-# API requests costing $3.50+ per million
-
-variable "enable_apigateway_quotas" {
-  description = "Enable API Gateway service quota limits"
-  type        = bool
-  default     = true
-}
-
-variable "apigateway_throttle_rate_limit" {
-  description = <<-EOT
-    Maximum requests per second for API Gateway (account level throttle).
-
-    24-HOUR COST ANALYSIS:
-    - REST API: $3.50/million requests
-    - 100 req/sec × 86,400 sec = 8.64M requests/day
-    - 8.64M × $3.50/1M = $30.24/day max
-    - Lower to 50 req/sec = $15.12/day max
-  EOT
-  type        = number
-  default     = 100 # 100 req/sec = ~$30/day max
-}
-
-# REMOVED: apigateway_throttle_burst_limit
-# The API Gateway throttle burst quota (L-CDF5615A) is NOT adjustable via
-# Service Quota Templates. AWS returns IllegalArgumentException.
-# To change burst limits, open an AWS Support case.
 
 # -----------------------------------------------------------------------------
 # TAGS
