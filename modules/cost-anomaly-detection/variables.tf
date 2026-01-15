@@ -46,8 +46,41 @@ variable "alert_emails" {
 # MONITOR CONFIGURATION
 # -----------------------------------------------------------------------------
 
+variable "create_monitors" {
+  description = <<-EOT
+    Whether to create new anomaly monitors.
+
+    AWS LIMIT: Maximum 10 DIMENSIONAL monitors per account.
+
+    Set to FALSE if:
+    - The account already has 10 monitors (AWS limit reached)
+    - You want to use existing monitors instead
+
+    When false, you must provide existing_monitor_arns.
+
+    To list existing monitors:
+      aws ce get-anomaly-monitors --query 'AnomalyMonitors[*].{Name:MonitorName,ARN:MonitorArn,Type:MonitorType}'
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "existing_monitor_arns" {
+  description = <<-EOT
+    List of existing anomaly monitor ARNs to use instead of creating new ones.
+    Required when create_monitors = false.
+
+    Example:
+      existing_monitor_arns = [
+        "arn:aws:ce::123456789012:anomalymonitor/abc123-def456-789"
+      ]
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "monitor_linked_accounts" {
-  description = "Create additional monitor for linked account spending patterns"
+  description = "Create additional monitor for linked account spending patterns (only when create_monitors = true)"
   type        = bool
   default     = true
 }

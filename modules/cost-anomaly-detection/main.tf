@@ -15,6 +15,19 @@
 #   Layer 2: Service Quotas - How many resources can exist
 #   Layer 3: Budgets - Hard spend limits with automated actions
 #   Layer 4: Anomaly Detection - ML-based unusual pattern detection
+#
+# AWS LIMITS:
+# - Maximum 10 DIMENSIONAL monitors per account
+# - If you hit this limit, set create_monitors = false and pass existing
+#   monitor ARNs via existing_monitor_arns variable
+#
+# USAGE MODES:
+# 1. Full mode (default): Creates monitors + subscriptions
+#    create_monitors = true (default)
+#
+# 2. Subscription-only mode: Uses existing monitors, creates subscriptions only
+#    create_monitors = false
+#    existing_monitor_arns = ["arn:aws:ce::123456789012:anomalymonitor/abc123"]
 # =============================================================================
 
 terraform {
@@ -83,8 +96,13 @@ data "aws_caller_identity" "current" {}
 # -----------------------------------------------------------------------------
 # The monitor defines WHAT to monitor for anomalies.
 # We create a service-level monitor to catch anomalies across all AWS services.
+#
+# NOTE: AWS allows maximum 10 DIMENSIONAL monitors per account.
+# If you hit this limit, set create_monitors = false and use existing_monitor_arns.
 
 resource "aws_ce_anomaly_monitor" "main" {
+  count = var.create_monitors ? 1 : 0
+
   name              = "${var.namespace}-cost-anomaly-monitor"
   monitor_type      = "DIMENSIONAL"
   monitor_dimension = "SERVICE"
@@ -96,7 +114,7 @@ resource "aws_ce_anomaly_monitor" "main" {
 
 # Optional: Linked account monitor for multi-account setups
 resource "aws_ce_anomaly_monitor" "linked_accounts" {
-  count = var.monitor_linked_accounts ? 1 : 0
+  count = var.create_monitors && var.monitor_linked_accounts ? 1 : 0
 
   name              = "${var.namespace}-linked-account-anomaly-monitor"
   monitor_type      = "DIMENSIONAL"
@@ -107,19 +125,31 @@ resource "aws_ce_anomaly_monitor" "linked_accounts" {
   })
 }
 
+# Compute effective monitor ARNs - either from created monitors or existing ones
+locals {
+  # Use created monitor ARNs if we're creating them, otherwise use existing
+  effective_monitor_arns = var.create_monitors ? compact([
+    aws_ce_anomaly_monitor.main[0].arn,
+    var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
+  ]) : var.existing_monitor_arns
+
+  # Only create subscriptions if we have monitor ARNs to attach to
+  create_subscriptions = length(local.effective_monitor_arns) > 0
+}
+
 # -----------------------------------------------------------------------------
 # COST ANOMALY SUBSCRIPTION
 # -----------------------------------------------------------------------------
 # The subscription defines HOW to be notified when anomalies are detected.
+# Subscriptions use either created monitors or existing monitor ARNs.
 
 resource "aws_ce_anomaly_subscription" "main" {
+  count = local.create_subscriptions ? 1 : 0
+
   name      = "${var.namespace}-cost-anomaly-subscription"
   frequency = var.alert_frequency
 
-  monitor_arn_list = compact([
-    aws_ce_anomaly_monitor.main.arn,
-    var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
-  ])
+  monitor_arn_list = local.effective_monitor_arns
 
   subscriber {
     type    = "SNS"
@@ -150,15 +180,12 @@ resource "aws_ce_anomaly_subscription" "main" {
 # Separate subscription for immediate alerts on large anomalies
 
 resource "aws_ce_anomaly_subscription" "high_priority" {
-  count = var.enable_high_priority_alerts ? 1 : 0
+  count = local.create_subscriptions && var.enable_high_priority_alerts ? 1 : 0
 
   name      = "${var.namespace}-high-priority-anomaly-subscription"
   frequency = "IMMEDIATE"
 
-  monitor_arn_list = compact([
-    aws_ce_anomaly_monitor.main.arn,
-    var.monitor_linked_accounts ? aws_ce_anomaly_monitor.linked_accounts[0].arn : ""
-  ])
+  monitor_arn_list = local.effective_monitor_arns
 
   subscriber {
     type    = "SNS"
