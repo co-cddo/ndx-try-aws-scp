@@ -8,7 +8,6 @@ terraform {
     }
   }
 
-  # Backend configured in backend.tf
 }
 
 provider "aws" {
