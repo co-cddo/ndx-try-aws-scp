@@ -21,6 +21,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = ">= 2.0"
+    }
   }
 }
 
@@ -30,8 +34,10 @@ terraform {
 
 data "archive_file" "enforcer_lambda" {
   type        = "zip"
-  output_path = "${path.module}/lambda.zip"
+  output_path = "${path.module}/.lambda.zip"
   source_dir  = "${path.module}/lambda"
+  # Excludes ensure clean ZIP file
+  excludes    = ["__pycache__", "*.pyc", ".DS_Store"]
 }
 
 # Lambda execution role
