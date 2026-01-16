@@ -40,46 +40,6 @@ variable "allowed_ec2_instance_types" {
 }
 
 # =============================================================================
-# SERVICE QUOTAS (24-HOUR LEASE OPTIMIZED)
-# =============================================================================
-
-variable "enable_service_quotas" {
-  description = "Enable Service Quota Templates for sandbox accounts"
-  type        = bool
-  default     = true
-}
-
-variable "ec2_vcpu_quota" {
-  description = "Maximum vCPUs for On-Demand EC2 instances (24hr: 64 vCPUs @ $0.05/hr = ~$77/day)"
-  type        = number
-  default     = 64
-}
-
-variable "ebs_storage_quota_tib" {
-  description = "Maximum EBS storage per type (gp2/gp3) in TiB (24hr: 1 TiB @ $0.08/GB-month = ~$2.73/day)"
-  type        = number
-  default     = 1
-}
-
-variable "lambda_concurrency_quota" {
-  description = "Maximum Lambda concurrent executions"
-  type        = number
-  default     = 100
-}
-
-variable "rds_instance_quota" {
-  description = "Maximum RDS DB instances (24hr: 5 x db.m5.large @ $4.10/day = ~$20.50/day)"
-  type        = number
-  default     = 5
-}
-
-variable "rds_storage_quota_gb" {
-  description = "Maximum total RDS storage in GB (24hr: 500GB @ $0.115/GB-month = ~$1.92/day)"
-  type        = number
-  default     = 500
-}
-
-# =============================================================================
 # AWS BUDGETS (PER-ACCOUNT FROM POOL OU)
 # =============================================================================
 # Budgets are automatically created for each account discovered in the sandbox
