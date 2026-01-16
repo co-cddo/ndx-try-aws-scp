@@ -15,11 +15,6 @@ managed_regions = ["us-east-1", "us-west-2"]
 # Enable cost avoidance SCP (recommended: true)
 enable_cost_avoidance = true
 
-# Service Quotas disabled - AWS only allows quota increases, not decreases.
-# Default quotas exceed desired limits, so templates provide no value.
-# SCPs are the primary cost control mechanism.
-enable_service_quotas = false
-
 # EC2 instance types allowed (customize based on your needs)
 allowed_ec2_instance_types = [
   "t2.micro",

@@ -48,53 +48,6 @@ module "scp_manager" {
 }
 
 # =============================================================================
-# SERVICE QUOTAS (24-HOUR LEASE OPTIMIZED)
-# =============================================================================
-# Service Quotas complement SCPs by limiting the NUMBER of resources.
-# Quotas are designed for 24-hour sandbox leases with a target daily budget.
-# Uses Service Quota Templates for automatic application to new accounts.
-
-module "service_quotas" {
-  source = "../../modules/service-quotas-manager"
-
-  # Regions matching the SCP limit_regions configuration
-  # All managed regions get the same quota limits applied
-  regions = var.managed_regions
-
-  # EC2 quotas - 64 vCPUs allows reasonable compute, ~$77/day max
-  # GPU/accelerator quotas disabled (enable_ec2_gpu_quotas=false) - SCP already blocks these
-  enable_ec2_quotas        = var.enable_service_quotas
-  ec2_on_demand_vcpu_limit = var.ec2_vcpu_quota
-  ec2_spot_vcpu_limit      = var.ec2_vcpu_quota
-
-  # EBS quotas DISABLED - uses 5 template slots, SCP already limits volume types/sizes
-  # enable_ebs_quotas defaults to false in module
-
-  # Lambda quotas - 100 concurrent executions
-  enable_lambda_quotas         = var.enable_service_quotas
-  lambda_concurrent_executions = var.lambda_concurrency_quota
-
-  # VPC quotas DISABLED - AWS limits templates to 10 total, prioritizing EC2/Lambda/EKS
-  # VPCs are free, NAT gateways have small hourly cost ($1.08/day)
-  enable_vpc_quotas = false
-
-  # RDS quotas DISABLED - AWS limits templates to 10 total, prioritizing EC2/Lambda/EKS
-  # RDS controlled via instance type restrictions in SCP
-  enable_rds_quotas = false
-
-  # EKS quotas - 2 clusters max
-  enable_eks_quotas = var.enable_service_quotas
-  eks_cluster_limit = 2
-
-  # Enable template association for automatic application
-  enable_template_association = var.enable_service_quotas
-
-  tags = {
-    Component = "Service-Quotas"
-  }
-}
-
-# =============================================================================
 # DYNAMIC ACCOUNT DISCOVERY FROM SANDBOX POOL OU
 # =============================================================================
 # Automatically discovers all accounts in the sandbox pool OU.
@@ -246,16 +199,6 @@ output "scp_policy_ids" {
 output "exempt_roles" {
   description = "Role ARN patterns exempt from SCPs"
   value       = module.scp_manager.exempt_role_arns
-}
-
-output "service_quotas_summary" {
-  description = "Summary of service quota limits"
-  value       = var.enable_service_quotas ? module.service_quotas.quota_summary : null
-}
-
-output "estimated_max_daily_cost" {
-  description = "Estimated maximum daily cost based on quotas"
-  value       = var.enable_service_quotas ? module.service_quotas.estimated_max_daily_cost : "Service quotas disabled"
 }
 
 # -----------------------------------------------------------------------------
