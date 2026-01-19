@@ -97,7 +97,7 @@ variable "block_expensive_services" {
     "neptune:Create*", "docdb:Create*", "memorydb:CreateCluster",
     "es:Create*", "opensearch:Create*",
     "batch:CreateComputeEnvironment", "glue:CreateJob", "glue:CreateDevEndpoint",
-    "elasticfilesystem:CreateFileSystem", "timestream:Create*", "qldb:CreateLedger"
+    "timestream:Create*", "qldb:CreateLedger"
   ]
 }
 
