@@ -1,6 +1,6 @@
-# Bedrock Quota Investigation - Account 449788867583
+# Bedrock Quota Investigation - Account 449788867583 (pool-001)
 
-**Date:** 2026-01-21
+**Date:** 2026-01-21 (Updated: 2026-01-23)
 **Investigator:** Gerard Jarzebak
 **Issue:** Bedrock queries (Nova Pro) being blocked with "Too many tokens per day" error
 
@@ -8,7 +8,27 @@
 
 ## Executive Summary
 
-Sandbox account `449788867583` has **zero Bedrock quotas** for on-demand model inference, causing all Nova Pro API calls to fail with `ThrottlingException`. This is **not caused by our SCPs or Terraform code** - it's an AWS-enforced limitation on new accounts that requires a manual support ticket to resolve.
+Sandbox account `449788867583` (pool-001) has **zero Bedrock quotas** for on-demand model inference, causing all Nova Pro API calls to fail with `ThrottlingException`.
+
+**This is NOT a "new account" issue** - pool-001 is the **oldest** sandbox pool account (created 2025-11-07), and newer pool accounts work fine. This suggests an **account-specific issue** that requires AWS Support investigation.
+
+---
+
+## Key Finding: Pool-001 is an Outlier
+
+| Account | Name | Created | Bedrock Status |
+|---------|------|---------|----------------|
+| **449788867583** | **pool-001** | **2025-11-07** | **BROKEN (0.0 quotas)** |
+| 831494785845 | pool-002 | 2025-11-28 | Working |
+| 340601547583 | pool-003 | 2025-12-04 | Working |
+| 982203978489 | pool-004 | 2025-12-04 | Working |
+| 680464296760 | pool-005 | 2025-12-23 | Working |
+| 404584456509 | pool-006 | 2025-12-23 | Working |
+| 417845783913 | pool-007 | 2025-12-23 | Working |
+| 221792773038 | pool-008 | 2025-12-23 | Working |
+| 848960887562 | pool-009 | 2026-01-15 | Working |
+
+**This rules out "new account restrictions" as the cause.**
 
 ---
 
@@ -26,18 +46,16 @@ modelId: "amazon.nova-pro-v1:0"
 
 Events recorded on Jan 16 and Jan 19, 2026 - **100% failure rate**.
 
-### 2. Current Quota Values
+### 2. Current Quota Values (pool-001)
 
-| Account | On-demand tokens/min (Nova Pro) | Status |
-|---------|--------------------------------|--------|
-| **449788867583** (Sandbox) | **0.0** | Blocked |
-| **955063685555** (Management) | 1,000,000 | Working |
+| Metric | Value |
+|--------|-------|
+| On-demand tokens/min (Nova Pro) | **0.0** |
+| On-demand requests/min (Nova Pro) | **0.0** |
+| Max tokens/day (Nova Pro) | **0.0** |
+| Same for Nova Lite, Nova Micro | **0.0** |
 
-All Nova model quotas in the sandbox account are set to 0:
-- `On-demand model inference tokens per minute for Amazon Nova Pro: 0.0`
-- `On-demand model inference requests per minute for Amazon Nova Pro: 0.0`
-- `Model invocation max tokens per day for Amazon Nova Pro: 0.0`
-- Same for Nova Lite, Nova Micro, and other models
+For comparison, management account (955063685555) has 1,000,000 tokens/min.
 
 ### 3. What We Ruled Out
 
@@ -51,6 +69,13 @@ The `InnovationSandboxAwsNukeSupportedServicesScp` explicitly **allows** Bedrock
 
 No SCP in our Terraform code denies Bedrock API calls.
 
+#### "New Account" Theory is WRONG
+
+Initially hypothesized that AWS restricts Bedrock on new accounts. However:
+- pool-001 is the **oldest** pool account
+- Newer accounts (pool-002 through pool-009) **work fine**
+- This is clearly an account-specific issue, not a systemic one
+
 #### Service Quota Templates Are NOT Setting Zero Values
 
 Checked management account - **no Bedrock templates are defined**:
@@ -59,30 +84,20 @@ Checked management account - **no Bedrock templates are defined**:
 ServiceQuotaIncreaseRequestInTemplateList: []
 ```
 
-Only EC2, Lambda, and EKS templates exist.
-
 #### The Removed service-quotas-manager Module Never Had Bedrock
 
 The module removed in PR #17 only managed: EC2, EBS, Lambda, VPC, RDS, EKS.
 **Bedrock quotas were never managed by our Terraform.**
 
-### 4. Root Cause: AWS New Account Restrictions
+### 4. Possible Causes for Pool-001 Specifically
 
-**AWS has been reducing Bedrock quotas for newly created accounts since 2024/2025.**
-
-Key findings from AWS documentation and community reports:
-
-| Factor | Details |
-|--------|---------|
-| **New account defaults** | Often 0-2 RPM, 2,000 tokens/min (vs 200,000+ for older accounts) |
-| **Adjustable via API?** | **No** - marked as `Adjustable: false` |
-| **Why?** | Fraud prevention, payment history, regional factors, demand management |
-| **Resolution** | AWS Support ticket required |
-| **Timeline** | ~2 weeks for quota restoration |
-
-This explains the discrepancy:
-- Management account (older) → healthy quotas
-- Sandbox accounts (newly created for pool) → zero quotas
+| Possibility | Likelihood | Details |
+|-------------|------------|---------|
+| **AWS Trust & Safety flag** | High | Pool-001 may have triggered fraud/abuse detection |
+| **Excessive historical usage** | Medium | If pool-001 was heavily used, AWS may have reduced quotas |
+| **Billing/Payment issue** | Low | Could be flagged for billing reasons |
+| **Manual AWS intervention** | Possible | AWS Support may have reduced quotas after an incident |
+| **Model access revocation** | Possible | Bedrock model access may have been revoked |
 
 ---
 
@@ -90,38 +105,52 @@ This explains the discrepancy:
 
 1. **Quotas are non-adjustable**: The `Adjustable: false` flag means the Service Quotas API rejects programmatic changes
 2. **Templates won't work**: Service Quota Templates can only set values for adjustable quotas
-3. **AWS requires manual review**: New accounts must be approved before receiving Bedrock capacity
+3. **AWS requires manual review**: Support ticket required to investigate and restore quotas
 
 ---
 
 ## Recommended Actions
 
-### Immediate Fix (Per Account)
+### Immediate: Investigate Pool-001 Specifically
 
-1. **Submit AWS Support ticket** for account 449788867583:
-   - Service: Amazon Bedrock
-   - Request: Increase on-demand inference quotas for Nova models
-   - Suggested values: 100,000+ tokens/min for Nova Pro, Lite, Micro
+1. **Submit AWS Support ticket** for account 449788867583 (pool-001):
+   - Subject: "Bedrock quotas showing 0.0 - please investigate account status"
+   - Include: Account is part of Innovation Sandbox; was working previously; other accounts work fine
+   - Ask: Is there a Trust & Safety flag? Was quota manually reduced? Model access status?
 
-2. **Expected timeline**: ~2 weeks for approval
+2. **Check Bedrock Model Access** in pool-001:
+   ```bash
+   aws bedrock list-foundation-models --region us-east-1 \
+     --query 'modelSummaries[?contains(modelId, `nova`)]'
+   ```
+   - If models don't appear, model access may have been revoked
 
-### Long-term Solutions for Innovation Sandbox
+3. **Compare with working account** (e.g., pool-002):
+   - Verify quotas are healthy in newer accounts
+   - Confirm the issue is isolated to pool-001
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Pre-warm pool accounts** | Accounts ready when leased | Requires planning; 2-week lead time |
-| **Use older accounts** | Higher default quotas | May not have enough accounts |
-| **Document limitation** | Sets user expectations | Users can't use Bedrock immediately |
-| **Automate support tickets** | Scalable | Still requires manual AWS approval |
+### Short-term: Consider Rotating Pool-001
 
-### Suggested Process Change
+If AWS cannot restore quotas quickly:
+- Remove pool-001 from the active pool
+- Replace with a new account
+- Keep pool-001 for investigation/testing
 
-When creating new sandbox pool accounts (`innovation-sandbox-on-aws-utils`):
+### Long-term: Monitoring
 
-1. Create account
-2. Immediately submit Bedrock quota increase request
-3. Wait for approval before marking account as "Available" in pool
-4. Or: Add "Bedrock-enabled" flag to account metadata for scenarios that need it
+Add monitoring to detect quota issues before they impact users:
+- Alert when Bedrock ThrottlingExceptions occur
+- Periodic quota checks across pool accounts
+
+---
+
+## Additional Finding: SCP Blocks Service Quotas API
+
+The `InnovationSandboxAwsNukeSupportedServicesScp` uses a `NotAction` allowlist that does NOT include `servicequotas:*`. This means:
+
+- Users cannot query their own quotas from sandbox accounts
+- This is intentional (service quotas isn't in AWS Nuke scope)
+- Quota monitoring must be done from the management account
 
 ---
 
@@ -129,8 +158,6 @@ When creating new sandbox pool accounts (`innovation-sandbox-on-aws-utils`):
 
 - [AWS Bedrock Quotas Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html)
 - [Request Bedrock Quota Increase](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas-increase.html)
-- [Ultra Low Bedrock Rate Limits for New Accounts (DEV Community)](https://dev.to/aws-builders/ultra-low-bedrock-llm-rate-limits-for-new-aws-accounts-time-to-wake-up-your-inactive-aws-accounts-3no0)
-- [Amazon Bedrock Quota Cuts Explained](https://tobiasto.cloud/post/aws-bedrock-quota-increase/)
 - PR #17: Removed service-quotas-manager module (confirmed Bedrock was never managed)
 
 ---
@@ -138,12 +165,12 @@ When creating new sandbox pool accounts (`innovation-sandbox-on-aws-utils`):
 ## Appendix: Commands Used for Investigation
 
 ```bash
-# Check CloudTrail for Bedrock errors
+# Check CloudTrail for Bedrock errors (from management account)
 aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=InvokeModel \
   --region us-east-1
 
-# Check current quotas
+# Check current quotas (from management account, targeting sandbox)
 aws service-quotas list-service-quotas --service-code bedrock --region us-east-1
 
 # Check Service Quota Templates (management account only)
@@ -153,4 +180,29 @@ aws service-quotas list-service-quota-increase-requests-in-template \
 # Verify model is accessible (not blocked by SCP)
 aws bedrock list-foundation-models --region us-east-1 \
   --query 'modelSummaries[?contains(modelId, `nova-pro`)]'
+
+# List all pool accounts (from management account)
+aws organizations list-accounts-for-parent \
+  --parent-id ou-xxxx-xxxxxxxx \
+  --query 'Accounts[*].[Id,Name,JoinedTimestamp]' --output table
+
+# Compare quotas between accounts (requires assuming role in each)
+# Note: servicequotas:* is blocked by SCP in sandbox accounts
+# Must query from management account using Organizations APIs
 ```
+
+---
+
+## Appendix: Pool Account Timeline
+
+| Account | Name | Created | Notes |
+|---------|------|---------|-------|
+| 449788867583 | pool-001 | 2025-11-07 | **BROKEN** - Bedrock quotas 0.0 |
+| 831494785845 | pool-002 | 2025-11-28 | Working |
+| 340601547583 | pool-003 | 2025-12-04 | Working |
+| 982203978489 | pool-004 | 2025-12-04 | Working |
+| 680464296760 | pool-005 | 2025-12-23 | Working |
+| 404584456509 | pool-006 | 2025-12-23 | Working |
+| 417845783913 | pool-007 | 2025-12-23 | Working |
+| 221792773038 | pool-008 | 2025-12-23 | Working |
+| 848960887562 | pool-009 | 2026-01-15 | Working |
