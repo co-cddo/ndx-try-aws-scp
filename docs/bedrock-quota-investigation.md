@@ -107,6 +107,106 @@ The module removed in PR #17 only managed: EC2, EBS, Lambda, VPC, RDS, EKS.
 2. **Templates won't work**: Service Quota Templates can only set values for adjustable quotas
 3. **AWS requires manual review**: Support ticket required to investigate and restore quotas
 
+### AWS Confirmation (22 Jan 2026)
+
+Joe Reay (AWS) confirmed:
+> "Can confirm it isn't possible to reduce service quotas. Isaac (GDS TAM) is probably the best person to explore other potential options with."
+
+A call is being scheduled with the ISB team to discuss alternatives.
+
+---
+
+## SCP Options for Bedrock Cost Control
+
+Since quotas cannot be reduced programmatically, here are SCP-based alternatives to control Bedrock costs:
+
+### Option 1: Block Expensive Bedrock Models
+
+Allow cheap models (Nova Micro/Lite) but deny expensive ones (Claude, Llama 405B, Titan Premier):
+
+```hcl
+{
+  "Sid": "DenyExpensiveBedrockModels",
+  "Effect": "Deny",
+  "Action": [
+    "bedrock:InvokeModel",
+    "bedrock:InvokeModelWithResponseStream"
+  ],
+  "Resource": [
+    "arn:aws:bedrock:*::foundation-model/anthropic.claude-*",
+    "arn:aws:bedrock:*::foundation-model/meta.llama3-1-405b*",
+    "arn:aws:bedrock:*::foundation-model/amazon.titan-text-premier*",
+    "arn:aws:bedrock:*::foundation-model/ai21.*",
+    "arn:aws:bedrock:*::foundation-model/cohere.*"
+  ],
+  "Condition": {
+    "ArnNotLike": {
+      "aws:PrincipalARN": ["arn:aws:iam::*:role/InnovationSandbox-*"]
+    }
+  }
+}
+```
+
+**Pros:** Users can still use Bedrock with cheaper models (Nova family)
+**Cons:** Blocks legitimate use cases requiring advanced models
+
+### Option 2: Block Model Access Enablement
+
+Prevent users from enabling additional Bedrock models beyond what's pre-configured:
+
+```hcl
+{
+  "Sid": "DenyBedrockModelEntitlement",
+  "Effect": "Deny",
+  "Action": [
+    "bedrock:PutFoundationModelEntitlement",
+    "bedrock:CreateModelCustomizationJob",
+    "bedrock:CreateProvisionedModelThroughput"
+  ],
+  "Resource": "*",
+  "Condition": {
+    "ArnNotLike": {
+      "aws:PrincipalARN": ["arn:aws:iam::*:role/InnovationSandbox-*"]
+    }
+  }
+}
+```
+
+**Pros:** Prevents enabling expensive models; blocks provisioned throughput (very expensive)
+**Cons:** Requires pre-enabling desired models in each account
+
+### Option 3: AWS Budgets with Auto-Actions
+
+Set up budget alerts that trigger Lambda to revoke Bedrock permissions when threshold exceeded:
+
+1. Create AWS Budget for Bedrock service ($X/day threshold)
+2. Budget action triggers SNS → Lambda
+3. Lambda attaches deny SCP to the specific account
+4. Manual review required to restore access
+
+**Pros:** Dynamic, responds to actual spend
+**Cons:** Complex to implement; reactive not preventive
+
+### Option 4: Block Bedrock Entirely (Nuclear Option)
+
+Remove `bedrock:*` from the `nuke_supported_services` allowlist in `scp-manager/main.tf`:
+
+```hcl
+# Remove this line from local.nuke_supported_services:
+# "bedrock:*",
+```
+
+**Pros:** Zero Bedrock costs
+**Cons:** Blocks all AI/ML experimentation - defeats purpose of sandbox
+
+### Questions for Isaac (GDS TAM)
+
+1. Can AWS apply account-level spending caps for Bedrock specifically?
+2. Are there AWS-side controls for token limits per account?
+3. What happened to pool-001 specifically - can AWS investigate?
+4. Is there a Private Marketplace or other mechanism to control model access org-wide?
+5. Can Bedrock Guardrails be used for cost control (not just content)?
+
 ---
 
 ## Recommended Actions
