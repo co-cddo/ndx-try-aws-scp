@@ -41,17 +41,7 @@ env:
   TF_VAR_cost_avoidance_ou_id: "ou-2laj-sre4rnjs"
 
   # ==========================================================================
-  # LAYER 2: SERVICE QUOTAS (24-HOUR LEASE OPTIMIZED)
-  # ==========================================================================
-  TF_VAR_enable_service_quotas: "true"
-  TF_VAR_ec2_vcpu_quota: "64"         # 64 vCPUs @ ~$77/day max
-  TF_VAR_ebs_storage_quota_tib: "1"   # 1 TiB per type, ~$6/day
-  TF_VAR_lambda_concurrency_quota: "100"
-  TF_VAR_rds_instance_quota: "5"      # 5 instances @ ~$20/day
-  TF_VAR_rds_storage_quota_gb: "500"  # 500GB total
-
-  # ==========================================================================
-  # LAYER 3: AWS BUDGETS (PER-ACCOUNT)
+  # LAYER 2: AWS BUDGETS (PER-ACCOUNT)
   # ==========================================================================
   # Budgets are created for EACH account discovered in the sandbox pool OU.
   # As new pool accounts are created, re-running terraform adds their budgets.
