@@ -131,6 +131,15 @@ variable "enable_cost_avoidance" {
   default     = true
 }
 
+variable "denied_bedrock_model_patterns" {
+  description = "Bedrock model ARN patterns to deny (cost avoidance)"
+  type        = list(string)
+  default = [
+    "arn:aws:bedrock:*::foundation-model/anthropic.claude*opus*",
+    "arn:aws:bedrock:*::foundation-model/anthropic.claude*sonnet*",
+  ]
+}
+
 variable "enable_iam_workload_identity" {
   description = "Enable IAM Workload Identity SCP for workload roles while preventing privilege escalation"
   type        = bool
