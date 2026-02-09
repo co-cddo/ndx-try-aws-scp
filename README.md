@@ -108,11 +108,36 @@ terraform apply
 - **Expensive Services Blocked:** 20+ services including SageMaker, EMR, Redshift, MSK, FSx, etc.
 
 **SCPs Created:**
-| SCP Name | Purpose |
-|----------|---------|
-| `InnovationSandboxAwsNukeSupportedServicesScp` | Allowlist of services (uses NotAction deny) |
-| `InnovationSandboxLimitRegionsScp` | Region restrictions with Bedrock exception |
-| `InnovationSandboxCostAvoidanceScp` | Comprehensive cost controls |
+| SCP Name | Purpose | Conditional |
+|----------|---------|-------------|
+| `InnovationSandboxAwsNukeSupportedServicesScp` | Allowlist of services (uses NotAction deny) | No |
+| `InnovationSandboxRestrictionsScp` | Region restrictions and security isolation | No |
+| `InnovationSandboxCostAvoidanceScp` | Comprehensive cost controls | No |
+| `InnovationSandboxIamWorkloadIdentityScp` | IAM role/user creation with privilege escalation guardrails | Yes (`enable_iam_workload_identity`, disabled by default) |
+
+**IAM Workload Identity SCP:**
+
+When enabled, sandbox users can create IAM roles and users for their workloads (e.g. EC2 instance profiles, Lambda execution roles) while being prevented from escalating their own privileges.
+
+Users **CAN**:
+- Create IAM roles and users for workloads
+- Attach policies to their created roles/users
+- Create instance profiles for EC2
+
+Users **CANNOT**:
+- Create roles/users matching protected name patterns (`Admin*`, `InnovationSandbox*`, `AWSAccelerator*`, `OrganizationAccountAccessRole`, etc.)
+- Modify, delete, or attach policies to privileged admin roles
+- Pass or assume privileged roles (Control Tower, LZA, service-linked, admin)
+
+```hcl
+variable "enable_iam_workload_identity" {
+  default = false  # Enable when sandbox users need to create IAM roles
+}
+```
+
+> **Note:** The Innovation Sandbox `SecurityAndIsolationRestrictions` SCP must also be
+> modified to remove `iam:CreateRole` and `iam:CreateUser` from its deny list for this
+> SCP to take effect.
 
 **Key Variables:**
 ```hcl
