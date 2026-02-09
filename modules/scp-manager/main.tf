@@ -545,14 +545,30 @@ resource "aws_organizations_policy" "restrictions" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DenyRegionAccess"
-        Effect   = "Deny"
-        Action   = ["*"]
-        Resource = ["*"]
+        Sid       = "DenyRegionAccess"
+        Effect    = "Deny"
+        NotAction = ["bedrock:*"]
+        Resource  = ["*"]
         Condition = {
           StringNotEquals = {
             "aws:RequestedRegion" = var.managed_regions
           }
+          ArnNotLike = {
+            "aws:PrincipalARN" = local.exempt_role_arns
+          }
+        }
+      },
+      {
+        Sid    = "DenyExpensiveBedrockModels"
+        Effect = "Deny"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream"
+        ]
+        Resource = var.denied_bedrock_model_patterns
+        Condition = {
           ArnNotLike = {
             "aws:PrincipalARN" = local.exempt_role_arns
           }
