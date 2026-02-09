@@ -116,10 +116,9 @@ locals {
 # =============================================================================
 # AWS BUDGETS MANAGER
 # =============================================================================
-# Budgets are the FINAL layer of cost defense:
+# Budgets are a key layer of cost defense:
 #   1. SCPs control WHAT actions are allowed
-#   2. Service Quotas control HOW MANY resources can exist
-#   3. Budgets control HOW MUCH MONEY can be spent
+#   2. Budgets control HOW MUCH MONEY can be spent
 #
 # For 24-hour sandbox leases, budgets provide:
 #   - Real-time spend tracking

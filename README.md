@@ -1,6 +1,6 @@
 # NDX Innovation Sandbox - Cost Defense System
 
-Comprehensive Terraform modules for cost control in the NDX Innovation Sandbox AWS deployment. Implements **5-layer defense-in-depth** architecture to protect against cost attacks in 24-hour sandbox leases.
+Comprehensive Terraform modules for cost control in the NDX Innovation Sandbox AWS deployment. Implements **4-layer defense-in-depth** architecture to protect against cost attacks in 24-hour sandbox leases.
 
 ## Table of Contents
 
@@ -8,10 +8,9 @@ Comprehensive Terraform modules for cost control in the NDX Innovation Sandbox A
 - [Quick Start](#quick-start)
 - [Modules](#modules)
   - [scp-manager](#1-scp-manager)
-  - [service-quotas-manager](#2-service-quotas-manager)
-  - [budgets-manager](#3-budgets-manager)
-  - [cost-anomaly-detection](#4-cost-anomaly-detection)
-  - [dynamodb-billing-enforcer](#5-dynamodb-billing-enforcer)
+  - [budgets-manager](#2-budgets-manager)
+  - [cost-anomaly-detection](#3-cost-anomaly-detection)
+  - [dynamodb-billing-enforcer](#4-dynamodb-billing-enforcer)
 - [Cost Protection Analysis](#cost-protection-analysis)
 - [Attack Vector Coverage](#attack-vector-coverage)
 - [Configuration](#configuration)
@@ -21,11 +20,11 @@ Comprehensive Terraform modules for cost control in the NDX Innovation Sandbox A
 
 ## Defense Architecture
 
-Each sandbox lease is **24 hours**. The 5-layer defense system prevents runaway costs:
+Each sandbox lease is **24 hours**. The 4-layer defense system prevents runaway costs:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         COST DEFENSE IN DEPTH (5 LAYERS)                        │
+│                         COST DEFENSE IN DEPTH (4 LAYERS)                        │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │  LAYER 1: SERVICE CONTROL POLICIES (SCPs)                    [PREVENTION]      │
@@ -39,34 +38,21 @@ Each sandbox lease is **24 hours**. The 5-layer defense system prevents runaway 
 │  • 20+ expensive services BLOCKED (SageMaker, EMR, Redshift, MSK, etc.)        │
 │  • ASG max size: 10, EKS nodegroup max: 5                                      │
 │                                                                                 │
-│  LAYER 2: SERVICE QUOTAS                                     [HARD LIMITS]     │
-│  ═══════════════════════════════════════════════════════════════════════       │
-│  Module: service-quotas-manager                                                 │
-│  Controls HOW MANY resources can exist                                          │
-│  • EC2: 64 vCPUs (On-Demand), 0 GPU/P/Inf/Trn/HighMem                          │
-│  • EBS: 1 TiB gp3 + 1 TiB gp2, 0 IOPS for io1/io2                              │
-│  • Lambda: 25 concurrent (reduced from 100 to limit memory attacks)            │
-│  • RDS: 5 instances, 500GB storage, 0 read replicas                            │
-│  • DynamoDB: 1000 WCU, 1000 RCU (provisioned mode only!)                       │
-│  • API Gateway: 100 req/sec throttle                                           │
-│  • Bedrock: Token limits for ALL model families                                │
-│  • Applied via Service Quota Templates (auto-applies to new accounts)          │
-│                                                                                 │
-│  LAYER 3: AWS BUDGETS                                        [DETECTION]       │
+│  LAYER 2: AWS BUDGETS                                        [DETECTION]       │
 │  ═══════════════════════════════════════════════════════════════════════       │
 │  Module: budgets-manager                                                        │
 │  Controls HOW MUCH MONEY can be spent (with aggressive alerting)               │
 │  • Daily budget: $50/day (alerts at 10%, 50%, 100%)                            │
 │  • Monthly budget: $1000/month                                                 │
 │  • 10 service-specific budgets with <1 hour detection:                         │
-│    - CloudWatch: $5/day (critical - no quota for log ingestion!)               │
+│    - CloudWatch: $5/day (critical - no service quota for log ingestion)        │
 │    - Lambda: $10/day                                                           │
 │    - DynamoDB: $5/day                                                          │
 │    - Bedrock: $10/day                                                          │
 │    - EC2, RDS, S3, API Gateway, Step Functions, Data Transfer                  │
 │  • SNS notifications + optional automated actions                              │
 │                                                                                 │
-│  LAYER 4: COST ANOMALY DETECTION                             [ML-BASED]        │
+│  LAYER 3: COST ANOMALY DETECTION                             [ML-BASED]        │
 │  ═══════════════════════════════════════════════════════════════════════       │
 │  Module: cost-anomaly-detection                                                 │
 │  ML-based unusual spending detection (FREE service)                            │
@@ -75,7 +61,7 @@ Each sandbox lease is **24 hours**. The 5-layer defense system prevents runaway 
 │  • IMMEDIATE alerts for anomalies >= daily budget                              │
 │  • Monitors both services and linked accounts                                  │
 │                                                                                 │
-│  LAYER 5: DYNAMODB BILLING ENFORCER                          [AUTO-REMEDIATE]  │
+│  LAYER 4: DYNAMODB BILLING ENFORCER                          [AUTO-REMEDIATE]  │
 │  ═══════════════════════════════════════════════════════════════════════       │
 │  Module: dynamodb-billing-enforcer                                              │
 │  EventBridge + Lambda to close critical DynamoDB On-Demand gap                 │
@@ -86,6 +72,10 @@ Each sandbox lease is **24 hours**. The 5-layer defense system prevents runaway 
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+> **Note:** Service Quotas (formerly Layer 2) were removed because AWS only allows quota
+> _increases_, not decreases below defaults. They provided no value for cost control.
+> SCPs and Budgets are more effective mechanisms.
 
 ---
 
@@ -136,36 +126,7 @@ variable "max_eks_nodegroup_size" { default = 5 }
 
 ---
 
-### 2. service-quotas-manager
-
-**Purpose:** Sets AWS Service Quotas to create HARD LIMITS on resource counts, preventing mass provisioning attacks.
-
-**Location:** `modules/service-quotas-manager/`
-
-**Key Features:**
-- Uses AWS Service Quota Templates (auto-applies to new accounts in organization)
-- Quotas designed for 24-hour lease cost calculations
-- Zero quotas for blocked resource types (GPU, IOPS, etc.)
-
-**Quotas Managed:**
-| Service | Quota | Default | 24-Hour Max Cost |
-|---------|-------|---------|------------------|
-| EC2 On-Demand vCPUs | L-1216C47A | 64 | ~$77/day |
-| EC2 GPU vCPUs | L-DB2E81BA | 0 | BLOCKED |
-| EBS gp3 Storage | L-7A658B76 | 1 TiB | ~$2.76/day |
-| Lambda Concurrent | L-B99A9384 | **25** | ~$360/day max |
-| DynamoDB RCU | L-8C6F19B1 | 1000 | ~$3/day |
-| DynamoDB WCU | L-F4C74B24 | 1000 | ~$16/day |
-| API Gateway Throttle | L-8A5B8E40 | 100/sec | ~$30/day |
-| Bedrock (all models) | Multiple | Various | ~$144/day |
-
-**Critical Gap Addressed:**
-> Lambda concurrent reduced from 100 → 25 to limit memory-based attacks.
-> At 10GB memory × 25 concurrent = $360/day max (vs $1,440 with 100)
-
----
-
-### 3. budgets-manager
+### 2. budgets-manager
 
 **Purpose:** Creates AWS Budgets with AGGRESSIVE thresholds for early detection of cost abuse. Alerts within <1 hour of most attack patterns.
 
@@ -199,7 +160,7 @@ variable "max_eks_nodegroup_size" { default = 5 }
 
 ---
 
-### 4. cost-anomaly-detection
+### 3. cost-anomaly-detection
 
 **Purpose:** Uses AWS Cost Anomaly Detection (ML-based, FREE) to identify unusual spending patterns that might slip through other layers.
 
@@ -231,15 +192,14 @@ variable "enable_cost_anomaly_detection" {
 
 ---
 
-### 5. dynamodb-billing-enforcer
+### 4. dynamodb-billing-enforcer
 
-**Purpose:** Closes the CRITICAL gap where DynamoDB On-Demand mode bypasses WCU/RCU service quotas.
+**Purpose:** Closes the CRITICAL gap where DynamoDB On-Demand mode has no capacity limits.
 
 **Location:** `modules/dynamodb-billing-enforcer/`
 
 **The Problem:**
-- Service Quotas for DynamoDB (WCU/RCU) only apply to PROVISIONED capacity mode
-- On-Demand mode has NO capacity quotas - purely pay-per-request
+- DynamoDB On-Demand mode is purely pay-per-request with no capacity limits
 - Attacker could create On-Demand tables and generate unlimited costs
 - There is NO SCP condition key for `dynamodb:BillingMode`
 
@@ -271,44 +231,44 @@ max_wcu = 100  # ~$1.56/day per table
 
 | Service | Protection Layer | Max Daily Cost |
 |---------|------------------|----------------|
-| EC2 Compute | SCP + Quota (64 vCPU) | ~$77 |
-| EBS Storage | SCP + Quota (2 TiB) | ~$6 |
-| RDS | SCP + Quota (5 instances) | ~$22 |
-| ElastiCache | SCP + Quota (10 nodes) | ~$40 |
-| Lambda | Quota (25 concurrent) | ~$360 |
+| EC2 Compute | SCP (instance type limits) | ~$77 |
+| EBS Storage | SCP (io1/io2 blocked, 500GB max) | ~$6 |
+| RDS | SCP (instance class + Multi-AZ blocked) | ~$22 |
+| ElastiCache | SCP (node type limits) | ~$40 |
+| Lambda | Budget ($10/day) | ~$10 |
 | DynamoDB | Enforcer + Budget | ~$5 |
-| Bedrock | Quota (all models) | ~$144 |
-| CloudWatch | Budget alert | ~$5+ (alerts fast) |
-| **Total Bounded** | | **~$650/day** |
+| Bedrock | Budget ($10/day) | ~$10 |
+| CloudWatch | Budget ($5/day, alerts fast) | ~$5+ |
+| **Total Bounded** | | **~$175/day** |
 
 ### Before vs After Defenses
 
 | Attack Vector | Before | After | Reduction |
 |---------------|--------|-------|-----------|
-| CloudWatch Log Flood | $21,600/day | Alerts in ~40 sec | 99%+ awareness |
-| Lambda Memory Abuse | $1,440/day | $360/day | 75% |
-| DynamoDB On-Demand | UNLIMITED | $1.87/table | 99%+ |
-| GPU Instances | $786+/day | BLOCKED | 100% |
-| Expensive Services | $1000s/day | BLOCKED | 100% |
+| CloudWatch Log Flood | $21,600/day | Budget alerts in ~40 sec | 99%+ awareness |
+| Lambda Memory Abuse | $1,440/day | Budget alert at $10/day | 99%+ awareness |
+| DynamoDB On-Demand | UNLIMITED | $1.87/table (auto-convert) | 99%+ |
+| GPU Instances | $786+/day | BLOCKED (SCP) | 100% |
+| Expensive Services | $1000s/day | BLOCKED (SCP) | 100% |
 
 ---
 
 ## Attack Vector Coverage
 
-| Attack Vector | Layer 1 (SCP) | Layer 2 (Quota) | Layer 3 (Budget) | Layer 4 (Anomaly) | Layer 5 (Enforcer) |
-|---------------|---------------|-----------------|------------------|-------------------|---------------------|
-| GPU Instances | ✅ BLOCKED | ✅ 0 quota | ✅ $10/day | ✅ ML detect | - |
-| Large EC2 | ✅ Type limit | ✅ 64 vCPU | ✅ $10/day | ✅ ML detect | - |
-| EBS io1/io2 | ✅ BLOCKED | ✅ 0 IOPS | ✅ via EC2 | ✅ ML detect | - |
-| RDS Multi-AZ | ✅ BLOCKED | ✅ 5 instances | ✅ $5/day | ✅ ML detect | - |
-| Lambda Memory | ❌ No key | ✅ 25 concurrent | ✅ $10/day | ✅ ML detect | - |
-| DynamoDB On-Demand | ❌ No key | ❌ Only provisioned | ✅ $5/day | ✅ ML detect | ✅ AUTO-CONVERT |
-| CloudWatch Logs | ❌ No key | ❌ No ingestion quota | ✅ $5/day | ✅ ML detect | - |
-| Bedrock Tokens | - | ✅ All model families | ✅ $10/day | ✅ ML detect | - |
-| API Gateway | - | ✅ 100 req/sec | ✅ $5/day | ✅ ML detect | - |
-| SageMaker | ✅ BLOCKED | - | - | - | - |
-| EMR | ✅ BLOCKED | - | - | - | - |
-| Redshift | ✅ BLOCKED | - | - | - | - |
+| Attack Vector | Layer 1 (SCP) | Layer 2 (Budget) | Layer 3 (Anomaly) | Layer 4 (Enforcer) |
+|---------------|---------------|------------------|-------------------|---------------------|
+| GPU Instances | ✅ BLOCKED | ✅ $10/day | ✅ ML detect | - |
+| Large EC2 | ✅ Type limit | ✅ $10/day | ✅ ML detect | - |
+| EBS io1/io2 | ✅ BLOCKED | ✅ via EC2 | ✅ ML detect | - |
+| RDS Multi-AZ | ✅ BLOCKED | ✅ $5/day | ✅ ML detect | - |
+| Lambda Memory | ❌ No SCP key | ✅ $10/day | ✅ ML detect | - |
+| DynamoDB On-Demand | ❌ No SCP key | ✅ $5/day | ✅ ML detect | ✅ AUTO-CONVERT |
+| CloudWatch Logs | ❌ No SCP key | ✅ $5/day | ✅ ML detect | - |
+| Bedrock Tokens | - | ✅ $10/day | ✅ ML detect | - |
+| API Gateway | - | ✅ $5/day | ✅ ML detect | - |
+| SageMaker | ✅ BLOCKED | - | - | - |
+| EMR | ✅ BLOCKED | - | - | - |
+| Redshift | ✅ BLOCKED | - | - | - |
 
 **Legend:**
 - ✅ Protected
@@ -325,7 +285,6 @@ The `environments/ndx-production/` configuration uses these key variables:
 
 ```hcl
 # Enable/disable modules
-variable "enable_service_quotas" { default = true }
 variable "enable_budgets" { default = true }
 variable "enable_cost_anomaly_detection" { default = true }
 variable "enable_dynamodb_billing_enforcer" { default = true }
@@ -350,17 +309,12 @@ Each module has extensive configuration options. Key customization points:
    allowed_ec2_instance_types = ["t3.micro", "t3.small", "t3.medium"]
    ```
 
-2. **Change Lambda concurrent limit** (`service-quotas-manager`):
-   ```hcl
-   lambda_concurrent_executions = 50  # Increase if needed
-   ```
-
-3. **Adjust budget thresholds** (`budgets-manager`):
+2. **Adjust budget thresholds** (`budgets-manager`):
    ```hcl
    cloudwatch_daily_limit = 10  # Less aggressive
    ```
 
-4. **DynamoDB enforcement mode** (`dynamodb-billing-enforcer`):
+3. **DynamoDB enforcement mode** (`dynamodb-billing-enforcer`):
    ```hcl
    enforcement_mode = "alert"  # Just alert, don't auto-convert
    ```
@@ -421,16 +375,13 @@ After deployment, key outputs include:
 ```hcl
 cost_defense_summary = {
   layer_1_scps = { status = "Always enabled", controls = [...] }
-  layer_2_quotas = { lambda_concurrent = "25", dynamodb_wcu_rcu = "1000" }
-  layer_3_budgets = { service_budgets = "10 services monitored" }
-  layer_4_anomaly_detection = { status = "Enabled", cost = "FREE" }
-  layer_5_dynamodb_enforcer = { mode = "Auto-convert On-Demand to Provisioned" }
+  layer_2_budgets = { service_budgets = "10 services monitored" }
+  layer_3_anomaly_detection = { status = "Enabled", cost = "FREE" }
+  layer_4_dynamodb_enforcer = { mode = "Auto-convert On-Demand to Provisioned" }
   gap_analysis = {
     critical_gaps_closed = [
       "CloudWatch Logs: Budget alert at $5/day",
-      "Lambda memory abuse: Concurrent reduced to 25",
       "DynamoDB On-Demand: Auto-convert enforcer",
-      "Bedrock all models: Quotas for Titan/Stability/Cohere/Meta"
     ]
     defense_effectiveness = "~95% of attack vectors blocked or bounded"
   }
@@ -449,19 +400,15 @@ terraform-scp-overrides/
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   ├── service-quotas-manager/            # Layer 2: Service Quotas
+│   ├── budgets-manager/                   # Layer 2: AWS Budgets
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   ├── budgets-manager/                   # Layer 3: AWS Budgets
+│   ├── cost-anomaly-detection/            # Layer 3: ML-based Detection
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   ├── cost-anomaly-detection/            # Layer 4: ML-based Detection
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   └── dynamodb-billing-enforcer/         # Layer 5: Auto-remediation
+│   └── dynamodb-billing-enforcer/         # Layer 4: Auto-remediation
 │       ├── main.tf
 │       ├── variables.tf
 │       └── outputs.tf

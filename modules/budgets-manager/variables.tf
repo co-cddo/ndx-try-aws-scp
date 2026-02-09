@@ -5,11 +5,12 @@
 #
 # DEFENSE IN DEPTH:
 #   Layer 1: SCPs - What actions are allowed
-#   Layer 2: Service Quotas - How many resources can exist
-#   Layer 3: Budgets - How much money can be spent
+#   Layer 2: Budgets - How much money can be spent
+#   Layer 3: Cost Anomaly Detection - ML-based unusual spending detection
+#   Layer 4: DynamoDB Billing Enforcer - Auto-remediation for On-Demand tables
 #
 # BUDGET CALCULATION:
-# Based on Service Quota defaults and worst-case spending scenarios:
+# Based on SCP-constrained worst-case spending scenarios:
 #   - EC2: 64 vCPUs @ $0.05/vCPU-hr = $77/day
 #   - EBS: 2 TiB @ $3/day = $6/day
 #   - RDS: 5 instances @ $4/day = $20/day
@@ -109,7 +110,7 @@ variable "daily_budget_limit" {
     Daily cost budget limit in USD.
 
     24-HOUR CALCULATION:
-    Based on Service Quota limits, maximum theoretical daily spend is ~$250-300.
+    Based on SCP-constrained resources, maximum theoretical daily spend is ~$250-300.
     Setting to $200 with 80% alert threshold triggers at $160, providing
     ~$40-90 buffer before hitting theoretical max.
   EOT
@@ -221,7 +222,7 @@ variable "bedrock_daily_limit" {
     - $10/day budget alerts within first hour
   EOT
   type        = number
-  default     = 10 # AGGRESSIVE: Quota limits throughput, budget catches cost
+  default     = 10 # AGGRESSIVE: AWS default throttle limits throughput, budget catches cost
 }
 
 variable "data_transfer_daily_limit" {
@@ -229,7 +230,7 @@ variable "data_transfer_daily_limit" {
     Daily data transfer budget limit in USD.
 
     HOURLY CALCULATION:
-    - Limited by EC2 vCPU quota (64) and NAT count
+    - Limited by EC2 instance types (SCP) and NAT count
     - Realistic max: ~50GB/hour = $4.50/hour
     - $10/day budget alerts in ~1 hour of abuse
   EOT
@@ -295,7 +296,7 @@ variable "apigateway_daily_limit" {
     - $5/day budget alerts quickly
   EOT
   type        = number
-  default     = 5 # AGGRESSIVE: Low since throttle quota already limits
+  default     = 5 # AGGRESSIVE: Low since AWS default throttle already limits
 }
 
 variable "alert_email" {

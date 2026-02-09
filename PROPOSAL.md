@@ -10,7 +10,7 @@ The Innovation Sandbox comes with SCPs (Service Control Policies) that are too r
 
 3. **ECS can't access Secrets Manager** - The LocalGov Drupal scenario fails because ECS tasks can't pull database credentials from Secrets Manager.
 
-4. **No cost controls** - Users could spin up expensive resources (large EC2s, SageMaker endpoints) and blow through budgets before the 24-hour billing reconciliation catches it.
+4. **No cost controls** - Users could spin up expensive resources (large EC2s, SageMaker endpoints) and blow through budgets before the 24-hour billing reconciliation catches it. Now addressed via SCPs, Budgets, Cost Anomaly Detection, and DynamoDB Billing Enforcer.
 
 Additionally, there's a conflict with LZA - it has an EventBridge rule that reverts any SCP changes we make manually.
 
@@ -70,12 +70,13 @@ After: Both sync and async operations allowed:
 
 ```
 terraform-scp-overrides/
-├── modules/scp-manager/     # The reusable module
-│   ├── main.tf              # SCP definitions
-│   ├── variables.tf         # Configurable inputs
-│   └── outputs.tf
+├── modules/
+│   ├── scp-manager/               # Layer 1: Service Control Policies
+│   ├── budgets-manager/           # Layer 2: AWS Budgets
+│   ├── cost-anomaly-detection/    # Layer 3: ML-based Detection
+│   └── dynamodb-billing-enforcer/ # Layer 4: Auto-remediation
 ├── environments/ndx-production/
-│   ├── main.tf              # Calls the module
+│   ├── main.tf              # Calls the modules
 │   ├── variables.tf
 │   ├── terraform.tfvars     # Actual values (OU IDs, etc.)
 │   └── backend.tf           # S3 state backend
