@@ -46,8 +46,8 @@ env:
   # Budgets are created for EACH account discovered in the sandbox pool OU.
   # As new pool accounts are created, re-running terraform adds their budgets.
   TF_VAR_enable_budgets: "true"
-  # OU containing sandbox pool accounts (Active OU where pool-001, pool-002, etc. live)
-  TF_VAR_sandbox_pool_ou_id: "ou-2laj-sre4rnjs"
+  # OU containing sandbox pool accounts (parent AccountPool OU to discover all accounts)
+  TF_VAR_sandbox_pool_ou_id: "ou-2laj-4dyae1oa"
   # Budget limits PER ACCOUNT
   TF_VAR_daily_budget_limit: "50"
   TF_VAR_monthly_budget_limit: "1000"
