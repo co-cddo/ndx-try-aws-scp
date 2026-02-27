@@ -117,47 +117,6 @@ module "budgets" {
 }
 
 # =============================================================================
-# COST ANOMALY DETECTION (ML-BASED - FREE SERVICE)
-# =============================================================================
-# Auto-discover existing DIMENSIONAL monitors to avoid AWS 10-monitor limit.
-
-data "external" "existing_anomaly_monitors" {
-  count   = var.enable_cost_anomaly_detection ? 1 : 0
-  program = ["bash", "-c", "aws ce get-anomaly-monitors --query '{arns_json: to_string(AnomalyMonitors[?MonitorType==`DIMENSIONAL`].MonitorArn)}' --output json 2>/dev/null || echo '{\"arns_json\":\"[]\"}'"]
-}
-
-locals {
-  existing_monitor_arns = var.enable_cost_anomaly_detection ? try(jsondecode(data.external.existing_anomaly_monitors[0].result.arns_json), []) : []
-  has_existing_monitors = length(local.existing_monitor_arns) > 0
-}
-
-module "cost_anomaly_detection" {
-  source = "../../modules/cost-anomaly-detection"
-  count  = var.enable_cost_anomaly_detection ? 1 : 0
-
-  namespace = var.namespace
-
-  # Auto-detect: use existing monitors if found, otherwise create new ones
-  create_monitors         = !local.has_existing_monitors
-  existing_monitor_arns   = local.existing_monitor_arns
-  monitor_linked_accounts = !local.has_existing_monitors
-
-  create_sns_topic = true
-  alert_emails     = var.budget_alert_emails
-
-  # IMMEDIATE required for SNS subscribers (DAILY/WEEKLY only support EMAIL)
-  alert_frequency        = "IMMEDIATE"
-  alert_threshold_amount = 10
-
-  enable_high_priority_alerts    = true
-  high_priority_threshold_amount = var.daily_budget_limit
-
-  tags = {
-    Component = "Cost-Anomaly-Detection"
-  }
-}
-
-# =============================================================================
 # DYNAMODB BILLING MODE ENFORCER (GAP FIX)
 # =============================================================================
 # Critical gap closure: DynamoDB On-Demand mode bypasses WCU/RCU quotas.
@@ -235,10 +194,6 @@ output "budget_summary" {
   } : null
 }
 
-output "cost_anomaly_detection_summary" {
-  description = "Summary of cost anomaly detection configuration"
-  value       = var.enable_cost_anomaly_detection ? module.cost_anomaly_detection[0].anomaly_detection_summary : null
-}
 
 output "dynamodb_billing_enforcer_summary" {
   description = "Summary of DynamoDB billing enforcement"
