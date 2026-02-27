@@ -375,7 +375,8 @@ resource "aws_organizations_policy" "cost_avoidance_services" {
           "sagemaker:CreateTrainingJob",
           "sagemaker:CreateHyperParameterTuningJob",
         ]
-        Resource = ["*"]
+        Resource  = ["*"]
+        Condition = { ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns } }
       },
       {
         Sid    = "DenyExpensiveData"
@@ -385,13 +386,15 @@ resource "aws_organizations_policy" "cost_avoidance_services" {
           "redshift:CreateCluster",
           "gamelift:CreateFleet",
         ]
-        Resource = ["*"]
+        Resource  = ["*"]
+        Condition = { ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns } }
       },
       {
-        Sid      = "DenyExpensiveServices"
-        Effect   = "Deny"
-        Action   = var.block_expensive_services
-        Resource = ["*"]
+        Sid       = "DenyExpensiveServices"
+        Effect    = "Deny"
+        Action    = var.block_expensive_services
+        Resource  = ["*"]
+        Condition = { ArnNotLike = { "aws:PrincipalARN" = local.exempt_role_arns } }
       }
     ]
   })
