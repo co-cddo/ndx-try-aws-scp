@@ -38,6 +38,7 @@ module "scp_manager" {
   enable_cost_avoidance      = var.enable_cost_avoidance
   cost_avoidance_ou_id       = var.cost_avoidance_ou_id
   allowed_ec2_instance_types = var.allowed_ec2_instance_types
+  allow_rds_multi_az         = true
 
   # IAM Workload Identity - allows users to create roles for EC2/Lambda/etc.
   enable_iam_workload_identity = var.enable_iam_workload_identity
