@@ -190,6 +190,7 @@ locals {
     "ssm:*",
     "ssmmessages:*",
     "storagegateway:*",
+    "timestream:*",
     "transcribe:*",
     "transfer:*",
     "waf:*",
