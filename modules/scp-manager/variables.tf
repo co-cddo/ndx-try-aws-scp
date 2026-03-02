@@ -92,10 +92,6 @@ variable "block_expensive_services" {
   type        = list(string)
   default = [
     "kafka:Create*", "fsx:CreateFileSystem", "kinesis:CreateStream",
-    "quicksight:CreateUser",
-    "quicksight:DeleteUserCustomPermission", "quicksight:DescribeUser",
-    "quicksight:ListUsers", "quicksight:ListUserGroups", "quicksight:SearchUsers",
-    "quicksight:UpdateUser", "quicksight:UpdateUserCustomPermission",
     "ec2:AllocateDedicatedHosts", "ec2:PurchaseReserved*", "rds:PurchaseReserved*",
     "elasticache:PurchaseReserved*", "savingsplans:CreateSavingsPlan",
     "neptune:Create*", "docdb:Create*", "memorydb:CreateCluster",
