@@ -80,6 +80,7 @@ locals {
     "backup:*",
     "batch:*",
     "bedrock:*",
+    "bedrock-agent:*",
     "budgets:*",
     "cloud9:*",
     "clouddirectory:*",
