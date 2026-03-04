@@ -196,7 +196,35 @@ output "budget_summary" {
 }
 
 
+# =============================================================================
+# OU METRICS CLOUDWATCH ALARMS
+# =============================================================================
+# Monitors account pool health metrics published by the OU metrics Lambda.
+# See: https://github.com/co-cddo/innovation-sandbox-on-aws-ou-metrics
+
+module "ou_metrics_alarms" {
+  source = "../../modules/ou-metrics-alarms"
+  count  = var.enable_ou_metrics_alarms ? 1 : 0
+
+  namespace = var.namespace
+
+  # Send alerts to same topic as budgets
+  sns_topic_arn = var.enable_budgets ? module.budgets[0].sns_topic_arn : var.ou_metrics_sns_topic_arn
+
+  # Thresholds
+  available_accounts_threshold = var.available_accounts_threshold
+
+  tags = {
+    Component = "OU-Metrics-Alarms"
+  }
+}
+
 output "dynamodb_billing_enforcer_summary" {
   description = "Summary of DynamoDB billing enforcement"
   value       = var.enable_dynamodb_billing_enforcer ? module.dynamodb_billing_enforcer[0].enforcement_summary : null
+}
+
+output "ou_metrics_alarms_summary" {
+  description = "Summary of OU metrics alarm configuration"
+  value       = var.enable_ou_metrics_alarms ? module.ou_metrics_alarms[0].alarm_summary : null
 }

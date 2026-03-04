@@ -157,6 +157,34 @@ variable "dynamodb_exempt_prefixes" {
 # IAM WORKLOAD IDENTITY
 # =============================================================================
 
+# =============================================================================
+# OU METRICS ALARMS
+# =============================================================================
+# CloudWatch alarms for account pool health metrics.
+# See: https://github.com/co-cddo/innovation-sandbox-on-aws-ou-metrics
+
+variable "enable_ou_metrics_alarms" {
+  description = "Enable CloudWatch alarms for OU account pool metrics"
+  type        = bool
+  default     = true
+}
+
+variable "ou_metrics_sns_topic_arn" {
+  description = "SNS topic ARN for OU metrics alarms (only used if budgets are disabled)"
+  type        = string
+  default     = null
+}
+
+variable "available_accounts_threshold" {
+  description = "Alarm when available accounts drops below this value"
+  type        = number
+  default     = 30
+}
+
+# =============================================================================
+# IAM WORKLOAD IDENTITY
+# =============================================================================
+
 variable "enable_iam_workload_identity" {
   description = <<-EOT
     Enable IAM Workload Identity SCP that allows users to create IAM roles
