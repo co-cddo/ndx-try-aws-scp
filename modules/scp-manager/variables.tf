@@ -7,7 +7,7 @@ variable "namespace" {
 variable "managed_regions" {
   description = "List of AWS regions allowed for sandbox accounts"
   type        = list(string)
-  default     = ["us-east-1", "us-west-2"]
+  default     = ["us-east-1", "us-west-2", "eu-west-2"]
 }
 
 variable "sandbox_ou_id" {
