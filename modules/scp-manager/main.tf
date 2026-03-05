@@ -216,6 +216,19 @@ locals {
     "textract:ListAdapters",
     "textract:ListAdapterVersions",
     "textract:ListTagsForResource",
+    # Translate (no persistent resources - aws-nuke doesn't support Translate yet)
+    "translate:TranslateText",
+    "translate:TranslateDocument",
+    "translate:ListLanguages",
+    "translate:ListTerminologies",
+    "translate:ListParallelData",
+    "translate:ListTextTranslationJobs",
+    "translate:ListTagsForResource",
+    "translate:GetTerminology",
+    "translate:GetParallelData",
+    "translate:DescribeTextTranslationJob",
+    "translate:StartTextTranslationJob",
+    "translate:StopTextTranslationJob",
   ]
 }
 
