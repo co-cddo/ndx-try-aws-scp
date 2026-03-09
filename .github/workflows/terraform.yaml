@@ -82,7 +82,6 @@ jobs:
     runs-on: ubuntu-latest
     # Block forks from running this workflow
     if: github.event.pull_request.head.repo.fork == false
-    env:
 
     steps:
       - name: Harden Runner
@@ -201,7 +200,6 @@ jobs:
     # Must be triggered via Actions -> Run workflow -> select 'apply'
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     environment: production  # Requires approval if environment is configured
-    env:
 
     steps:
       - name: Harden Runner
