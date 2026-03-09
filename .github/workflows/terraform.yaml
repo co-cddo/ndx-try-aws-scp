@@ -41,20 +41,6 @@ env:
   TF_VAR_cost_avoidance_ou_id: "ou-2laj-sre4rnjs"
 
   # ==========================================================================
-  # LAYER 2: AWS BUDGETS (PER-ACCOUNT)
-  # ==========================================================================
-  # Budgets are created for EACH account discovered in the sandbox pool OU.
-  # As new pool accounts are created, re-running terraform adds their budgets.
-  TF_VAR_enable_budgets: "true"
-  # OU containing sandbox pool accounts (parent AccountPool OU to discover all accounts)
-  TF_VAR_sandbox_pool_ou_id: "ou-2laj-4dyae1oa"
-  # Budget limits PER ACCOUNT
-  TF_VAR_daily_budget_limit: "50"
-  TF_VAR_monthly_budget_limit: "1000"
-  # Service-specific budgets (consolidated across all accounts)
-  TF_VAR_enable_service_budgets: "true"
-
-  # ==========================================================================
   # IAM WORKLOAD IDENTITY
   # ==========================================================================
   # Allows sandbox users to create IAM roles for EC2/Lambda workloads
@@ -97,7 +83,6 @@ jobs:
     # Block forks from running this workflow
     if: github.event.pull_request.head.repo.fork == false
     env:
-      TF_VAR_budget_alert_emails: ${{ secrets.SLACK_BUDGET_ALERT_EMAIL }}
 
     steps:
       - name: Harden Runner
@@ -217,7 +202,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     environment: production  # Requires approval if environment is configured
     env:
-      TF_VAR_budget_alert_emails: ${{ secrets.SLACK_BUDGET_ALERT_EMAIL }}
 
     steps:
       - name: Harden Runner
