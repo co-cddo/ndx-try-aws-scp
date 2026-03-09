@@ -19,6 +19,7 @@ terraform {
 locals {
   metric_namespace = "InnovationSandbox/OUMetrics"
   alarm_prefix     = "${var.namespace}-ou-metrics"
+  sns_actions      = var.sns_topic_arn != null ? [var.sns_topic_arn] : []
 }
 
 # -----------------------------------------------------------------------------
@@ -39,8 +40,8 @@ resource "aws_cloudwatch_metric_alarm" "low_available_accounts" {
   statistic           = "Minimum"
   treat_missing_data  = "missing"
 
-  alarm_actions = [var.sns_topic_arn]
-  ok_actions    = [var.sns_topic_arn]
+  alarm_actions = local.sns_actions
+  ok_actions    = local.sns_actions
 
   tags = var.tags
 }
@@ -63,8 +64,8 @@ resource "aws_cloudwatch_metric_alarm" "stuck_entry_accounts" {
   statistic           = "Maximum"
   treat_missing_data  = "missing"
 
-  alarm_actions = [var.sns_topic_arn]
-  ok_actions    = [var.sns_topic_arn]
+  alarm_actions = local.sns_actions
+  ok_actions    = local.sns_actions
 
   tags = var.tags
 }
@@ -87,8 +88,8 @@ resource "aws_cloudwatch_metric_alarm" "stuck_exit_accounts" {
   statistic           = "Maximum"
   treat_missing_data  = "missing"
 
-  alarm_actions = [var.sns_topic_arn]
-  ok_actions    = [var.sns_topic_arn]
+  alarm_actions = local.sns_actions
+  ok_actions    = local.sns_actions
 
   tags = var.tags
 }
@@ -112,8 +113,8 @@ resource "aws_cloudwatch_metric_alarm" "metrics_stale" {
   statistic           = "SampleCount"
   treat_missing_data  = "breaching"
 
-  alarm_actions = [var.sns_topic_arn]
-  ok_actions    = [var.sns_topic_arn]
+  alarm_actions = local.sns_actions
+  ok_actions    = local.sns_actions
 
   tags = var.tags
 }
