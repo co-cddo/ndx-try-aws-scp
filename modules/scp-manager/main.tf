@@ -82,6 +82,7 @@ locals {
     "bedrock:*",
     "bedrock-agent:*",
     "budgets:*",
+    "ce:*",
     "cloud9:*",
     "clouddirectory:*",
     "cloudformation:*",
@@ -597,7 +598,6 @@ resource "aws_organizations_policy" "restrictions" {
         Effect = "Deny"
         Action = [
           "aws-portal:ModifyAccount",
-          "aws-portal:ViewAccount",
           "cloudtrail:CreateServiceLinkedChannel",
           "cloudtrail:UpdateServiceLinkedChannel",
           "networkmanager:AssociateTransitGatewayConnectPeer",
@@ -607,8 +607,7 @@ resource "aws_organizations_policy" "restrictions" {
           "ram:EnableSharingWithAwsOrganization",
           "ssm:ModifyDocumentPermission",
           "wafv2:DisassociateFirewallManager",
-          "wafv2:PutFirewallManagerRuleGroups",
-          "cloudtrail:LookupEvents"
+          "wafv2:PutFirewallManagerRuleGroups"
         ]
         Resource = ["*"]
         Condition = {
