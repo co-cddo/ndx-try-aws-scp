@@ -675,6 +675,7 @@ resource "aws_organizations_policy" "restrictions" {
           "connect:AssociateInstanceStorageConfig",
           "connect:ClaimPhoneNumber",
           "connect:CreateInstance",
+          "connect:CreateIntegrationAssociation",
           "deepcomposer:AssociateCoupon",
           "directconnect:AllocateConnectionOnInterconnect",
           "directconnect:AllocateHostedConnection",
