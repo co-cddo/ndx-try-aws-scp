@@ -83,7 +83,7 @@ locals {
     "bedrock-agent:*",
     "budgets:*",
     "cases:*",
-    "ce:*",
+    "ce:GetCostAndUsage",
     "cloud9:*",
     "clouddirectory:*",
     "cloudformation:*",
